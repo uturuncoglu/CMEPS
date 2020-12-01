@@ -130,6 +130,12 @@ contains
     call addfld(fldListTo(compatm)%flds, 'Si_ifrac')
     call addfld(fldListTo(compatm)%flds, 'So_ofrac')
 
+    !----------------------------------------------------------
+    ! to atm: surface temperatures from ocn 
+    !----------------------------------------------------------
+    call addfld(fldListFr(compocn)%flds, 'So_t')
+    call addfld(fldListTo(compatm)%flds, 'So_t')
+
     !=====================================================================
     ! FIELDS TO OCEAN (compocn)
     !=====================================================================
@@ -618,8 +624,8 @@ contains
     ! ---------------------------------------------------------------------
     ! to ice: zonal sea water velocity from ocn
     ! ---------------------------------------------------------------------
-    allocate(flds(2))
-    flds = (/'So_u   ', 'So_v   '/)
+    allocate(flds(4))
+    flds = (/'So_t   ', 'So_s   ', 'So_u   ', 'So_v   '/)
 
     do n = 1,size(flds)
        fldname = trim(flds(n))
