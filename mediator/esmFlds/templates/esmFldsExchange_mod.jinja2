@@ -184,10 +184,10 @@ contains
 
   subroutine esmFldsExchange_init(gcomp, phase, rc)
 
-  use med_methods_mod, only : fldchk => med_methods_FB_FldChk
+  use med_methods_mod, only       : fldchk => med_methods_FB_FldChk
   use med_internalstate_mod, only : InternalState
   use esmFlds,               only : addmap => med_fldList_AddMap
-  use esmFlds,               only : addmrg => med_fldList_AddMrg  
+  use esmFlds,               only : addmrg => med_fldList_AddMrg
   {% for map_type in map_types %}
   use esmflds,               only : map{{ map_type }}
   {% endfor %}
@@ -199,6 +199,7 @@ contains
 
   ! local variables:
   type(InternalState)             :: is_local
+  type(gcomp_attr)                :: attr
   integer                         :: n
   character(len=CS)               :: fldname
   character(len=CS), allocatable  :: flds(:)
@@ -257,7 +258,7 @@ contains
   {%- if mrgs is defined %}
   {%- for k, v in mrgs.items() %}
   {% if dir in k.split(":")[0] %}
-  call addmrg(fldListTo(comp{{ v['mrg_to'] }})%flds, {{ v['field'] }}, &
+  call addmrg(fldListTo(comp{{ v['mrg_to'] }})%flds, '{{ v['field'] }}', &
      mrg_from=comp{{ v['mrg_from'] }}, mrg_fld='{{ v['mrg_fld'] }}', mrg_type='{{ v['mrg_type'] }}')
   {% endif %}
   {% endfor %}
@@ -273,6 +274,8 @@ contains
 
   subroutine esmFldsExchange_attr(gcomp, attr, rc)
 
+  use med_internalstate_mod, only : mastertask, logunit
+
   ! input/output parameters:
   type(ESMF_GridComp)              :: gcomp
   type(gcomp_attr), intent(inout)  :: attr
@@ -282,7 +285,7 @@ contains
   character(32)                    :: cname
   integer                          :: verbosity, diagnostic
   character(len=CL)                :: cvalue
-  logical                          :: isPresent
+  logical                          :: isPresent, isSet
   character(len=*), parameter      :: subname='(esmFldsExchange_attr)'
 
   !--------------------------------------
