@@ -1,0 +1,357 @@
+module esmFldsExchange_mod
+
+  use ESMF
+  use NUOPC
+  use med_utils_mod, only : chkerr => med_utils_chkerr
+  use med_kind_mod,  only : CX=>SHR_KIND_CX
+  use med_kind_mod,  only : CS=>SHR_KIND_CS
+  use med_kind_mod,  only : CL=>SHR_KIND_CL
+  use esmflds,       only : compmed
+  {% for conn in conns %}
+  use esmflds,       only : comp{{ conn[:3] }}
+  {% endfor %}
+  use esmflds,       only : ncomps
+  use esmflds,       only : fldListTo
+  use esmflds,       only : fldListFr
+
+  !---------------------------------------------------------------------
+  ! This is a mediator specific routine that determines ALL possible
+  ! fields exchanged between components and their associated routing,
+  ! mapping and merging
+  !---------------------------------------------------------------------
+
+  implicit none
+  private
+
+  public :: esmFldsExchange
+
+  character(*), parameter :: u_FILE_u = __FILE__
+
+  type gcomp_attr
+    {% for conn in conns %}
+    character(len=CX) :: {{ conn }}_fmap='unset'
+    character(len=CX) :: {{ conn }}_smap='unset'
+    character(len=CX) :: {{ conn }}_vmap='unset'
+    {% endfor %}
+  end type
+
+!===============================================================================
+contains
+!===============================================================================
+
+  subroutine esmFldsExchange(gcomp, phase, rc)
+
+    ! input/output parameters:
+    type(ESMF_GridComp)             :: gcomp
+    character(len=*), intent(in)    :: phase
+    integer         , intent(inout) :: rc
+
+    ! local variables:
+    character(len=*) , parameter    :: subname='(esmFldsExchange_mod)'
+    !--------------------------------------
+
+    call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+    rc = ESMF_SUCCESS
+
+    if (phase == 'advertise') then
+      call esmFldsExchange_advt(gcomp, phase, rc)
+      if (chkerr(rc,__LINE__,u_FILE_u)) return
+    elseif (phase == 'fieldcheck') then
+      call esmFldsExchange_fchk(gcomp, phase, rc)
+      if (chkerr(rc,__LINE__,u_FILE_u)) return
+    elseif (phase == 'initialize') then
+      call esmFldsExchange_init(gcomp, phase, rc)
+      if (chkerr(rc,__LINE__,u_FILE_u)) return
+    else
+      call ESMF_LogSetError(ESMF_FAILURE, &
+         msg=trim(subname)//": Phase is set to "//trim(phase), &
+         line=__LINE__, file=__FILE__, rcToReturn=rc)
+      return  ! bail out
+    endif
+
+    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange
+
+  !-----------------------------------------------------------------------------
+
+  subroutine esmFldsExchange_advt(gcomp, phase, rc)
+
+    ! input/output parameters:
+    type(ESMF_GridComp)             :: gcomp
+    character(len=*), intent(in)    :: phase
+    integer         , intent(inout) :: rc
+
+    ! local variables:
+    integer                         :: i, n
+    logical                         :: isPresent
+    character(len=CL)               :: cvalue
+    character(len=CS)               :: fldname
+    type(gcomp_attr)                :: attr
+    character(len=CS), allocatable  :: flds(:)
+    character(len=*), parameter     :: subname='(esmFldsExchange_advt)'
+    !--------------------------------------
+
+    call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+    rc = ESMF_SUCCESS
+
+    !=====================================================================
+    ! scalar information
+    !=====================================================================
+
+    call NUOPC_CompAttributeGet(gcomp, name='ScalarFieldName', isPresent=isPresent, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+    if (isPresent) then
+       call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldName", value=cvalue, rc=rc)
+       if (ChkErr(rc,__LINE__,u_FILE_u)) return
+       do n = 1, ncomps
+          call addfld(fldListFr(n)%flds, trim(cvalue))
+          call addfld(fldListTo(n)%flds, trim(cvalue))
+       end do
+    end if
+
+    {%- if fields is defined %}
+
+    {% for dir in fields.keys() %}
+
+    !=====================================================================
+    ! FIELDS TO {{ dir[4:] | upper }}
+    !=====================================================================
+
+    {% if fields[dir] | length == 1 %}
+    allocate(flds(1))
+    flds = (/ '{{ fields[dir] | join('') }}' /)
+    {% else %}
+    allocate(flds({{ fields[dir] | length }}))
+    {% set len = fields[dir] | first | length %}
+    {% for v in fields[dir] %}
+    {% if loop.index == 1 %}
+    flds = (/ '{{ v | str_format(len) }}', &
+    {% elif loop.index < loop.length %}
+              '{{ v | str_format(len) }}', &
+    {% else %}
+              '{{ v | str_format(len) }}' /)
+    {% endif %}
+    {% endfor %}
+   {% endif %}
+    do n = 1,size(flds)
+       fldname = trim(flds(n))
+       call addfld(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname))
+       call addfld(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname))
+    end do
+    deallocate(flds)
+    {% endfor %}
+    {% endif %}
+
+    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange_advt
+
+  !-----------------------------------------------------------------------------
+
+  subroutine esmFldsExchange_fchk(gcomp, phase, rc)
+
+    use med_methods_mod, only : fldchk => med_methods_FB_FldChk
+    use med_internalstate_mod, only : InternalState
+
+    ! input/output parameters:
+    type(ESMF_GridComp)             :: gcomp
+    character(len=*), intent(in)    :: phase
+    integer         , intent(inout) :: rc
+
+    ! local variables:
+    type(InternalState)             :: is_local
+    character(len=*) , parameter    :: subname='(esmFldsExchange_fchk)'
+    !--------------------------------------
+
+    call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+    rc = ESMF_SUCCESS
+
+    !=====================================================================
+    ! Get the internal state
+    !=====================================================================
+
+    nullify(is_local%wrap)
+    call ESMF_GridCompGetInternalState(gcomp, is_local, rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange_fchk
+
+  !-----------------------------------------------------------------------------
+
+  subroutine esmFldsExchange_init(gcomp, phase, rc)
+
+  use med_methods_mod, only : fldchk => med_methods_FB_FldChk
+  use med_internalstate_mod, only : InternalState
+
+  ! input/output parameters:
+  type(ESMF_GridComp)             :: gcomp
+  character(len=*), intent(in)    :: phase
+  integer         , intent(inout) :: rc
+
+  ! local variables:
+  type(InternalState)             :: is_local
+  integer                         :: n
+  character(len=CS)               :: fldname
+  character(len=CS), allocatable  :: flds(:)
+  character(len=*) , parameter    :: subname='(esmFldsExchange_init)'
+  !--------------------------------------
+
+  call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+  rc = ESMF_SUCCESS
+
+  !=====================================================================
+  ! Get the internal state
+  !=====================================================================
+
+  nullify(is_local%wrap)
+  call ESMF_GridCompGetInternalState(gcomp, is_local, rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+  {%- if maps is defined %}
+
+  {% for dir in maps.keys() %}
+
+  !=====================================================================
+  ! FIELDS TO {{ dir[4:] | upper }}
+  !=====================================================================
+
+  {% for map in maps[dir].keys() %}
+  {% if maps[dir][map] | length == 1 %}
+  allocate(flds(1))
+  flds = (/ '{{ maps[dir][map] | join('') }}' /)
+  {% else %}
+  allocate(flds({{ maps[dir][map] | length }}))
+  {% set len = maps[dir][map] | first | length %}
+  {% for v in maps[dir][map] %}
+  {% if loop.index == 1 %}
+  flds = (/ '{{ v | str_format(len) }}', &
+  {% elif loop.index < loop.length %}
+            '{{ v | str_format(len) }}', &
+  {% else %}
+            '{{ v | str_format(len) }}' /)
+  {% endif %}
+  {% endfor -%}
+  {% endif %}
+  do n = 1,size(flds)
+     fldname = trim(flds(n))
+     call addmap(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname), comp{{ dir[4:] }}, &
+          map{{ map[0] }}, '{{ map[1] }}', attr%{{ dir }}_{{ map[2] }})
+     {% if map[3] %}
+     call addmrg(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname), &
+          mrg_from=comp{{ dir[:3] }}, mrg_fld=trim(fldname), mrg_type='copy')
+     {% endif %}
+  end do
+  deallocate(flds)
+
+  {% endfor %}
+
+  {%- if mrgs is defined %}
+  {%- for k, v in mrgs.items() %}
+  {% if dir in k.split(":")[0] %}
+  call addmrg(fldListTo(comp{{ v['mrg_to'] }})%flds, {{ v['field'] }}, &
+     mrg_from=comp{{ v['mrg_from'] }}, mrg_fld='{{ v['mrg_fld'] }}', mrg_type='{{ v['mrg_type'] }}')
+  {% endif %}
+  {% endfor %}
+  {% endif -%}
+  {% endfor -%}
+  {% endif %}
+
+  call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange_init
+
+  !-----------------------------------------------------------------------------
+
+  subroutine esmFldsExchange_attr(gcomp, attr, rc)
+
+  ! input/output parameters:
+  type(ESMF_GridComp)              :: gcomp
+  type(gcomp_attr), intent(inout)  :: attr
+  integer         , intent(inout)  :: rc
+
+  ! local variables:
+  character(32)                    :: cname
+  integer                          :: verbosity, diagnostic
+  character(len=CL)                :: cvalue
+  logical                          :: isPresent
+  character(len=*), parameter      :: subname='(esmFldsExchange_attr)'
+
+  !--------------------------------------
+
+  call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+  rc = ESMF_SUCCESS
+
+  !----------------------------------------------------------
+  ! Query component for name, verbosity, and diagnostic values
+  !----------------------------------------------------------
+
+#if ESMF_VERSION_MAJOR >= 8
+  call NUOPC_CompGet(gcomp, name=cname, verbosity=verbosity, &
+    diagnostic=diagnostic, rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+#else
+  call ESMF_GridCompGet(gcomp, name=cname, rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+  call ESMF_AttributeGet(gcomp, name="Verbosity", value=cvalue, &
+    defaultValue="0", convention="NUOPC", purpose="Instance", rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+  verbosity = ESMF_UtilString2Int(cvalue, &
+    specialStringList=(/"off ","low ","high","max "/), &
+    specialValueList=(/0,9985,32513,131071/), rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+  call ESMF_AttributeGet(gcomp, name="Diagnostic", value=cvalue, &
+    defaultValue="0", convention="NUOPC", purpose="Instance", rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+  diagnostic = ESMF_UtilString2Int(cvalue, &
+    specialStringList=(/"off ","max "/), &
+    specialValueList=(/0,131071/), rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+#endif
+
+  !----------------------------------------------------------
+  ! Initialize mapping file names
+  !----------------------------------------------------------
+
+  {% for conn in conns %}
+  ! mapping to {{ conn[4:] }}
+  call NUOPC_CompAttributeGet(gcomp, name='{{ conn }}_fmapname', &
+    value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+  if (isPresent .and. isSet) then
+    attr%{{ conn }}_fmap = trim(cvalue)
+    if (mastertask) write(logunit, '(a)') trim(subname)// &
+      '{{ conn }}_fmapname = '//trim(attr%{{ conn }}_fmap)
+  end if
+
+  call NUOPC_CompAttributeGet(gcomp, name='{{ conn }}_smapname', &
+    value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+  if (isPresent .and. isSet) then
+    attr%{{ conn }}_smap = trim(cvalue)
+    if (mastertask) write(logunit, '(a)') trim(subname)// &
+      '{{ conn }}_smapname = '//trim(attr%{{ conn }}_smap)
+  end if
+
+  call NUOPC_CompAttributeGet(gcomp, name='{{ conn }}_fmapname', &
+    value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+  if (chkerr(rc,__LINE__,u_FILE_u)) return
+  if (isPresent .and. isSet) then
+    attr%{{ conn }}_vmap = trim(cvalue)
+    if (mastertask) write(logunit, '(a)') trim(subname)// &
+      '{{ conn }}_vmapname = '//trim(attr%{{ conn }}_vmap)
+  end if
+
+  {% endfor %}
+  call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange_attr
+
+end module esmFldsExchange_mod

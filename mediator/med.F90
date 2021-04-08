@@ -40,9 +40,7 @@ module MED
   use esmFlds                  , only : coupling_mode
   use esmFlds                  , only : med_name, atm_name, lnd_name, ocn_name
   use esmFlds                  , only : ice_name, rof_name, wav_name, glc_name
-  use esmFldsExchange_nems_mod , only : esmFldsExchange_nems
-  use esmFldsExchange_cesm_mod , only : esmFldsExchange_cesm
-  use esmFldsExchange_hafs_mod , only : esmFldsExchange_hafs
+  use esmFldsExchange_mod      , only : esmFldsExchange
 
   implicit none
   private
@@ -755,20 +753,8 @@ contains
        write(logunit,*)
     end if
 
-    if (trim(coupling_mode) == 'cesm') then
-       call esmFldsExchange_cesm(gcomp, phase='advertise', rc=rc)
-       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else if (trim(coupling_mode) == 'nems_orig' .or. trim(coupling_mode) == 'nems_frac' &
-       .or. trim(coupling_mode) == 'nems_orig_data') then
-       call esmFldsExchange_nems(gcomp, phase='advertise', rc=rc)
-       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else if (trim(coupling_mode(1:4)) == 'hafs') then
-       call esmFldsExchange_hafs(gcomp, phase='advertise', rc=rc)
-       if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else
-        call ESMF_LogWrite(trim(coupling_mode)//' is not a valid coupling_mode', ESMF_LOGMSG_INFO)
-        call ESMF_Finalize(endflag=ESMF_END_ABORT)
-    end if
+    call esmFldsExchange(gcomp, phase='advertise', rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     !------------------
     ! Determine component present indices
@@ -2120,13 +2106,8 @@ contains
       ! Determine mapping and merging info for field exchanges in mediator
       !---------------------------------------
 
-      if (trim(coupling_mode) == 'cesm') then
-         call esmFldsExchange_cesm(gcomp, phase='initialize', rc=rc)
-         if (ChkErr(rc,__LINE__,u_FILE_u)) return
-      else if (trim(coupling_mode) == 'hafs') then
-         call esmFldsExchange_hafs(gcomp, phase='initialize', rc=rc)
-         if (ChkErr(rc,__LINE__,u_FILE_u)) return
-      end if
+      call esmFldsExchange(gcomp, phase='initialize', rc=rc)
+      if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
       if (mastertask) then
          call med_fldList_Document_Mapping(logunit, is_local%wrap%med_coupling_active)

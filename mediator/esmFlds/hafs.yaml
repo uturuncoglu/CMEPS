@@ -1,0 +1,153 @@
+# Syntax
+# field_name: # placeholder (i.e. &tmp1) can be used to copy contents to another entry
+#   field_list: null means default and it is based on source component. it could be also Med_aoflux etc.
+#   src_component: ocn # this could be removed since it could be extracted from first (i.e. Sa_) part of variable name but if this convention changes then yaml will fail so it might be nice to keep it
+#   dst_component: ice
+#   map_type: could be unset (null), bilnr, consf, etc. full list is in esmFlds.F90
+#   map_norm: could be unset (null), none etc. need to get list of available options
+#   map_file: could be unset (null) ...
+---
+map:
+  Sa_u: &map1
+    field_list: null
+    src_component: atm
+    dst_component: ocn
+    map_type: bilnr
+    map_norm: one
+    map_file: smap
+  Sa_v: *map1
+  Sa_wspd: *map1
+  Sa_z: *map1
+  Sa_tbot: *map1
+  Sa_tskn: *map1
+  Sa_pbot: *map1
+  Sa_shum: *map1
+  Sa_ptem: *map1
+  Sa_pslv: *map1
+  Sa_dens: *map1
+  Sa_topo: *map1
+  Faxa_swnet: &map2
+    field_list: null
+    src_component: atm
+    dst_component: ocn
+    map_type: consf
+    map_norm: one
+    map_file: fmap
+  Faxa_lwnet: *map2
+  Faxa_swdn: *map2
+  Faxa_lwdn: *map2
+  Faxa_sen: *map2
+  Faxa_lat: *map2
+  Faxa_rainc: *map2
+  Faxa_rainl: *map2
+  Faxa_rain: *map2
+  Faxa_snowc: *map2
+  Faxa_snowl: *map2
+  Faxa_taux: *map2
+  Faxa_tauy: *map2
+  So_t:
+    field_list: null
+    src_component: ocn
+    dst_component: atm
+    map_type: fillv_bilnr
+    map_norm: norm
+    map_file: smap
+
+#  So_u: &map2
+#    field_list: null
+#    src_component: ocn
+#    dst_component: ice
+#    map_type: fcopy
+#    map_norm: null
+#    map_file: null
+#  So_v: *map2
+#  So_omask: *map2
+
+  #Si_ifrac:
+#    field_list: null
+#    src_component: ice
+#    dst_component: ocn
+#    map_type: fcopy
+#    map_norm: null
+#    map_file: null
+
+mrg:
+  Sa_u: &mrg1
+    field_list: null
+    mrg_to: ocn
+    field: null # assign Sa_u
+    mrg_from: atm
+    mrg_fld: null # assign Sa_u
+    mrg_type: copy
+    mrg_fracname: null
+  Sa_v: *mrg1
+  Sa_wspd: *mrg1
+  Sa_z: *mrg1
+  Sa_topo: *mrg1
+  Sa_ptem: *mrg1
+  Sa_tskn: *mrg1
+  Sa_pbot: *mrg1
+  Sa_pslv: *mrg1
+  Sa_shum: *mrg1
+  Sa_dens: *mrg1
+  Faxa_snowc: *mrg1
+  Faxa_snowl: *mrg1
+  Faxa_rainc: *mrg1
+  Faxa_rainl: *mrg1
+  Faxa_rain: *mrg1
+  Faxa_swnet:
+    field_list: null #fldListTo
+    mrg_to: ocn
+    field: Foxx_swnet
+    mrg_from: atm
+    mrg_fld: null # assign Faxa_swnet
+    mrg_type: copy
+    mrg_fracname: null
+  Faxa_lwnet:
+    field_list: null
+    mrg_to: ocn
+    field: Foxx_lwnet
+    mrg_from: atm
+    mrg_fld: null
+    mrg_type: copy
+    mrg_fracname: null
+  Faxa_sen:
+    field_list: null
+    mrg_to: ocn
+    field: Foxx_sen
+    mrg_from: atm
+    mrg_fld: null
+    mrg_type: copy
+    mrg_fracname: null
+  Faxa_lat:
+    field_list: null
+    mrg_to: ocn
+    field: Foxx_lat
+    mrg_from: atm
+    mrg_fld: null
+    mrg_type: copy
+    mrg_fracname: null
+  Faxa_taux:
+    field_list: null
+    mrg_to: ocn
+    field: Foxx_taux
+    mrg_from: atm
+    mrg_fld: null
+    mrg_type: copy
+    mrg_fracname: null
+  Faxa_tauy:
+      field_list: null
+      mrg_to: ocn
+      field: Foxx_taux
+      mrg_from: atm
+      mrg_fld: null
+      mrg_type: copy
+      mrg_fracname: null
+  So_t:
+    field_list: null
+    mrg_to: atm
+    field: So_t
+    mrg_from: ocn
+    mrg_fld: So_t
+    type: copy
+    mrg_fracname: null
