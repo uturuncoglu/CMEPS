@@ -84,6 +84,14 @@ def get_maps(data, comps):
         map_dict[key][(v['map_type'], v['map_norm'], v['map_file'], merge)].append(k)
     return dict(map_dict)
 
+def get_map_types(data):
+    map_types = []
+    for k, v in data['map'].items():
+        map_types.append(v['map_type'])
+    map_types = list(set(map_types))
+    map_types.sort()
+    return map_types
+
 def get_mrgs(data, comps):
     mrg_dict = collections.defaultdict(dict)
     # group fields based on coupling direction, map_type, map_norm and map_file
@@ -91,7 +99,7 @@ def get_mrgs(data, comps):
         if data['mrg'][k]['field'] is None:
             data['mrg'][k]['field'] = k
         if data['mrg'][k]['mrg_fld'] is None:
-            data['mrg'][k]['mrg_fld'] = k            
+            data['mrg'][k]['mrg_fld'] = k
         if data['mrg'][k]['field'] != data['mrg'][k]['mrg_fld']:
             key = '{}2{}'.format(v['mrg_from'],v['mrg_to'])
             mrg_dict['{}:{}'.format(key,k)] = v
@@ -138,10 +146,11 @@ def main(argv):
     # mapping information required for init phase
     maps = get_maps(data, comps)
     global_dict['maps'] = maps
+    map_types = get_map_types(data)
+    global_dict['map_types'] = map_types
 
     # merging information required for init phase
     mrgs = get_mrgs(data, comps)
-    print(mrgs)
     global_dict['mrgs'] = mrgs
 
     # print data used to render jinja2 template

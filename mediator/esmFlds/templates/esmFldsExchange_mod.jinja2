@@ -186,6 +186,11 @@ contains
 
   use med_methods_mod, only : fldchk => med_methods_FB_FldChk
   use med_internalstate_mod, only : InternalState
+  use esmFlds,               only : addmap => med_fldList_AddMap
+  use esmFlds,               only : addmrg => med_fldList_AddMrg  
+  {% for map_type in map_types %}
+  use esmflds,               only : map{{ map_type }}
+  {% endfor %}
 
   ! input/output parameters:
   type(ESMF_GridComp)             :: gcomp
