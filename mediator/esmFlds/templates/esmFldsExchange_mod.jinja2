@@ -77,6 +77,8 @@ contains
 
   subroutine esmFldsExchange_advt(gcomp, phase, rc)
 
+    use esmFlds,               only : addfld => med_fldList_AddFld
+
     ! input/output parameters:
     type(ESMF_GridComp)             :: gcomp
     character(len=*), intent(in)    :: phase
@@ -184,89 +186,89 @@ contains
 
   subroutine esmFldsExchange_init(gcomp, phase, rc)
 
-  use med_methods_mod, only       : fldchk => med_methods_FB_FldChk
-  use med_internalstate_mod, only : InternalState
-  use esmFlds,               only : addmap => med_fldList_AddMap
-  use esmFlds,               only : addmrg => med_fldList_AddMrg
-  {% for map_type in map_types %}
-  use esmflds,               only : map{{ map_type }}
-  {% endfor %}
+    use med_methods_mod, only       : fldchk => med_methods_FB_FldChk
+    use med_internalstate_mod, only : InternalState
+    use esmFlds,               only : addmap => med_fldList_AddMap
+    use esmFlds,               only : addmrg => med_fldList_AddMrg
+    {% for map_type in map_types %}
+    use esmflds,               only : map{{ map_type }}
+    {% endfor %}
 
-  ! input/output parameters:
-  type(ESMF_GridComp)             :: gcomp
-  character(len=*), intent(in)    :: phase
-  integer         , intent(inout) :: rc
+    ! input/output parameters:
+    type(ESMF_GridComp)             :: gcomp
+    character(len=*), intent(in)    :: phase
+    integer         , intent(inout) :: rc
 
-  ! local variables:
-  type(InternalState)             :: is_local
-  type(gcomp_attr)                :: attr
-  integer                         :: n
-  character(len=CS)               :: fldname
-  character(len=CS), allocatable  :: flds(:)
-  character(len=*) , parameter    :: subname='(esmFldsExchange_init)'
-  !--------------------------------------
+    ! local variables:
+    type(InternalState)             :: is_local
+    type(gcomp_attr)                :: attr
+    integer                         :: n
+    character(len=CS)               :: fldname
+    character(len=CS), allocatable  :: flds(:)
+    character(len=*) , parameter    :: subname='(esmFldsExchange_init)'
+    !--------------------------------------
 
-  call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
-  rc = ESMF_SUCCESS
+    call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+    rc = ESMF_SUCCESS
 
-  !=====================================================================
-  ! Get the internal state
-  !=====================================================================
+    !=====================================================================
+    ! Get the internal state
+    !=====================================================================
 
-  nullify(is_local%wrap)
-  call ESMF_GridCompGetInternalState(gcomp, is_local, rc)
-  if (chkerr(rc,__LINE__,u_FILE_u)) return
+    nullify(is_local%wrap)
+    call ESMF_GridCompGetInternalState(gcomp, is_local, rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
 
-  {%- if maps is defined %}
+    {%- if maps is defined %}
 
-  {% for dir in maps.keys() %}
+    {% for dir in maps.keys() %}
 
-  !=====================================================================
-  ! FIELDS TO {{ dir[4:] | upper }}
-  !=====================================================================
+    !=====================================================================
+    ! FIELDS TO {{ dir[4:] | upper }}
+    !=====================================================================
 
-  {% for map in maps[dir].keys() %}
-  {% if maps[dir][map] | length == 1 %}
-  allocate(flds(1))
-  flds = (/ '{{ maps[dir][map] | join('') }}' /)
-  {% else %}
-  allocate(flds({{ maps[dir][map] | length }}))
-  {% set len = maps[dir][map] | first | length %}
-  {% for v in maps[dir][map] %}
-  {% if loop.index == 1 %}
-  flds = (/ '{{ v | str_format(len) }}', &
-  {% elif loop.index < loop.length %}
-            '{{ v | str_format(len) }}', &
-  {% else %}
-            '{{ v | str_format(len) }}' /)
-  {% endif %}
-  {% endfor -%}
-  {% endif %}
-  do n = 1,size(flds)
-     fldname = trim(flds(n))
-     call addmap(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname), comp{{ dir[4:] }}, &
-          map{{ map[0] }}, '{{ map[1] }}', attr%{{ dir }}_{{ map[2] }})
-     {% if map[3] %}
-     call addmrg(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname), &
-          mrg_from=comp{{ dir[:3] }}, mrg_fld=trim(fldname), mrg_type='copy')
-     {% endif %}
-  end do
-  deallocate(flds)
+    {% for map in maps[dir].keys() %}
+    {% if maps[dir][map] | length == 1 %}
+    allocate(flds(1))
+    flds = (/ '{{ maps[dir][map] | join('') }}' /)
+    {% else %}
+    allocate(flds({{ maps[dir][map] | length }}))
+    {% set len = maps[dir][map] | first | length %}
+    {% for v in maps[dir][map] %}
+    {% if loop.index == 1 %}
+    flds = (/ '{{ v | str_format(len) }}', &
+    {% elif loop.index < loop.length %}
+              '{{ v | str_format(len) }}', &
+    {% else %}
+              '{{ v | str_format(len) }}' /)
+    {% endif %}
+    {% endfor -%}
+    {% endif %}
+    do n = 1,size(flds)
+       fldname = trim(flds(n))
+       call addmap(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname), comp{{ dir[4:] }}, &
+            map{{ map[0] }}, '{{ map[1] }}', attr%{{ dir }}_{{ map[2] }})
+       {% if map[3] %}
+       call addmrg(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname), &
+            mrg_from=comp{{ dir[:3] }}, mrg_fld=trim(fldname), mrg_type='copy')
+       {% endif %}
+    end do
+    deallocate(flds)
 
-  {% endfor %}
+    {% endfor %}
 
-  {%- if mrgs is defined %}
-  {%- for k, v in mrgs.items() %}
-  {% if dir in k.split(":")[0] %}
-  call addmrg(fldListTo(comp{{ v['mrg_to'] }})%flds, '{{ v['field'] }}', &
-     mrg_from=comp{{ v['mrg_from'] }}, mrg_fld='{{ v['mrg_fld'] }}', mrg_type='{{ v['mrg_type'] }}')
-  {% endif %}
-  {% endfor %}
-  {% endif -%}
-  {% endfor -%}
-  {% endif %}
+    {%- if mrgs is defined %}
+    {%- for k, v in mrgs.items() %}
+    {% if dir in k.split(":")[0] %}
+    call addmrg(fldListTo(comp{{ v['mrg_to'] }})%flds, '{{ v['field'] }}', &
+       mrg_from=comp{{ v['mrg_from'] }}, mrg_fld='{{ v['mrg_fld'] }}', mrg_type='{{ v['mrg_type'] }}')
+    {% endif %}
+    {% endfor %}
+    {% endif -%}
+    {% endfor -%}
+    {% endif %}
 
-  call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
 
   end subroutine esmFldsExchange_init
 
