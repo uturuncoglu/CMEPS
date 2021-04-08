@@ -38,6 +38,10 @@ map:
   Faxa_lwdn: *map2
   Faxa_sen: *map2
   Faxa_lat: *map2
+  Faxa_swndr: *map2
+  Faxa_swndf: *map2
+  Faxa_swvdr: *map2
+  Faxa_swvdf: *map2
   Faxa_rainc: *map2
   Faxa_rainl: *map2
   Faxa_rain: *map2
@@ -52,24 +56,6 @@ map:
     map_type: fillv_bilnr
     map_norm: norm
     map_file: smap
-
-#  So_u: &map2
-#    field_list: null
-#    src_component: ocn
-#    dst_component: ice
-#    map_type: fcopy
-#    map_norm: null
-#    map_file: null
-#  So_v: *map2
-#  So_omask: *map2
-
-  #Si_ifrac:
-#    field_list: null
-#    src_component: ice
-#    dst_component: ocn
-#    map_type: fcopy
-#    map_norm: null
-#    map_file: null
 
 mrg:
   Sa_u: &mrg1
@@ -95,6 +81,11 @@ mrg:
   Faxa_rainc: *mrg1
   Faxa_rainl: *mrg1
   Faxa_rain: *mrg1
+  Faxa_lwdn: *mrg1
+  Faxa_swndr: *mrg1
+  Faxa_swvdr: *mrg1
+  Faxa_swndf: *mrg1
+  Faxa_swvdf: *mrg1
   Faxa_swnet:
     field_list: null #fldListTo
     mrg_to: ocn
@@ -136,13 +127,13 @@ mrg:
     mrg_type: copy
     mrg_fracname: null
   Faxa_tauy:
-      field_list: null
-      mrg_to: ocn
-      field: Foxx_taux
-      mrg_from: atm
-      mrg_fld: null
-      mrg_type: copy
-      mrg_fracname: null
+    field_list: null
+    mrg_to: ocn
+    field: Foxx_tauy
+    mrg_from: atm
+    mrg_fld: null
+    mrg_type: copy
+    mrg_fracname: null
   So_t:
     field_list: null
     mrg_to: atm
