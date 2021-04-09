@@ -7,8 +7,8 @@ module esmFldsExchange_mod
   use med_kind_mod,  only : CS=>SHR_KIND_CS
   use med_kind_mod,  only : CL=>SHR_KIND_CL
   use esmflds,       only : compmed
-  {% for conn in conns %}
-  use esmflds,       only : comp{{ conn[:3] }}
+  {% for comp in comps %}
+  use esmflds,       only : comp{{ comp }}
   {% endfor %}
   use esmflds,       only : ncomps
   use esmflds,       only : fldListTo
@@ -245,8 +245,13 @@ contains
     {% endif %}
     do n = 1,size(flds)
        fldname = trim(flds(n))
+       {% if map[2] == 'unset' %}
+       call addmap(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname), comp{{ dir[4:] }}, &
+            map{{ map[0] }}, '{{ map[1] }}', '{{ map[2] }}')
+       {% else %}
        call addmap(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname), comp{{ dir[4:] }}, &
             map{{ map[0] }}, '{{ map[1] }}', attr%{{ dir }}_{{ map[2] }})
+       {% endif %}
        {% if map[3] %}
        call addmrg(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname), &
             mrg_from=comp{{ dir[:3] }}, mrg_fld=trim(fldname), mrg_type='copy')

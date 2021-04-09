@@ -80,6 +80,10 @@ def get_maps(data, comps):
         if k in data['mrg']:
             if data['mrg'][k]['field'] == data['mrg'][k]['mrg_fld']:
                 merge = True
+        if v['map_norm'] is None:
+            v['map_norm'] = 'unset'
+        if v['map_file'] is None:
+            v['map_file'] = 'unset'
         # create dictionary for map definitions
         map_dict[key][(v['map_type'], v['map_norm'], v['map_file'], merge)].append(k)
     return dict(map_dict)

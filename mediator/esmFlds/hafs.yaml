@@ -56,6 +56,13 @@ map:
     map_type: fillv_bilnr
     map_norm: norm
     map_file: smap
+  So_mask:
+    field_list: null
+    src_component: ocn
+    dst_component: ice
+    map_type: fcopy
+    map_norm: null
+    map_file: null
 
 mrg:
   Sa_u: &mrg1
