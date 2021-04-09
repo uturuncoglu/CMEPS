@@ -88,9 +88,9 @@ contains
     integer                         :: i, n
     logical                         :: isPresent
     character(len=CL)               :: cvalue
-    character(len=CS)               :: fldname
+    character(len=CS)               :: fldnameSrc, fldnameDst
     type(gcomp_attr)                :: attr
-    character(len=CS), allocatable  :: flds(:)
+    character(len=CS), allocatable  :: flds(:,:)
     character(len=*), parameter     :: subname='(esmFldsExchange_advt)'
     !--------------------------------------
 
@@ -122,25 +122,26 @@ contains
     !=====================================================================
 
     {% if fields[dir] | length == 1 %}
-    allocate(flds(1))
-    flds = (/ '{{ fields[dir] | join('') }}' /)
+    allocate(flds(1,2))
+    flds = (/ '{{ fields[dir].keys() | list | first }}', '{{ fields[dir].values() | list | first }}' /)
     {% else %}
-    allocate(flds({{ fields[dir] | length }}))
+    allocate(flds({{ fields[dir] | length }},2))
     {% set len = fields[dir] | first | length %}
-    {% for v in fields[dir] %}
+    {% for k, v in fields[dir].items() %}
     {% if loop.index == 1 %}
-    flds = (/ '{{ v | str_format(len) }}', &
+    flds = (/ (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /), &
     {% elif loop.index < loop.length %}
-              '{{ v | str_format(len) }}', &
+              (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /), &
     {% else %}
-              '{{ v | str_format(len) }}' /)
+              (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /) /)
     {% endif %}
     {% endfor %}
-   {% endif %}
-    do n = 1,size(flds)
-       fldname = trim(flds(n))
-       call addfld(fldListFr(comp{{ dir[:3] }})%flds, trim(fldname))
-       call addfld(fldListTo(comp{{ dir[4:] }})%flds, trim(fldname))
+    {% endif %}
+    do n = 1,size(flds, dim=1)
+       fldnameSrc = trim(flds(n,1))
+       fldnameDst = trim(flds(n,2))
+       call addfld(fldListFr(comp{{ dir[:3] }})%flds, trim(fldnameSrc))
+       call addfld(fldListTo(comp{{ dir[4:] }})%flds, trim(fldnameDst))
     end do
     deallocate(flds)
     {% endfor %}

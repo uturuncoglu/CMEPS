@@ -47,25 +47,25 @@ def read_yaml(ifile):
     return data
 
 def get_flds(data, comps):
-    field_dict = collections.defaultdict(list)
+    field_dict = collections.defaultdict(dict)
     # add entries from map
     for k, v in data['map'].items():
         if v['dst_component'] in comps:
             key = '{}2{}'.format(v['src_component'],v['dst_component'])
             if k != field_dict[key]:
-                field_dict[key].append(k)
+                field_dict[key][k] = k
     # add entries from mrg
-    #for k, v in data['mrg'].items():
-    #    key = '{}2{}'.format(v['mrg_to'],v['mrg_from'])
-    #    if k != v['field'] and v['field'] not in field_dict[key]:
-    #        field_dict[key].append(v['field'])
-    #    key = '{}2{}'.format(v['mrg_from'],v['mrg_to'])
-    #    if k != v['mrg_fld'] and v['mrg_fld'] not in field_dict[key]:
-    #        field_dict[key].append(v['mrg_fld'])
-    # sort by string len
+    for k, v in data['mrg'].items():
+        if v['field']:
+            key = '{}2{}'.format(v['mrg_from'],v['mrg_to'])
+            if k != v['field'] and v['field'] not in field_dict[key]:
+                field_dict[key][k] = v['field']
+    # sort by key len
+    field_dict_sorted = collections.defaultdict(dict)
     for k, v in field_dict.items():
-        field_dict[k] = sorted(v, key=len, reverse=True)
-    return dict(field_dict)
+        for s in sorted(v, key=len, reverse=True):
+            field_dict_sorted[k][s] = v[s]
+    return dict(field_dict_sorted)
 
 def get_maps(data, comps):
     # create dictionary
