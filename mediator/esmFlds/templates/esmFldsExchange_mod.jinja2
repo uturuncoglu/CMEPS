@@ -123,17 +123,15 @@ contains
 
     {% if fields[dir] | length == 1 %}
     allocate(flds(1,2))
-    flds = (/ '{{ fields[dir].keys() | list | first }}', '{{ fields[dir].values() | list | first }}' /)
+    flds(1,:) = (/ '{{ fields[dir].keys() | list | first }}', '{{ fields[dir].values() | list | first }}' /)
     {% else %}
     allocate(flds({{ fields[dir] | length }},2))
     {% set len = fields[dir] | first | length %}
     {% for k, v in fields[dir].items() %}
-    {% if loop.index == 1 %}
-    flds = (/ (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /), &
-    {% elif loop.index < loop.length %}
-              (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /), &
+    {% if loop.index < 10 %}
+    flds({{ loop.index }},:)  = (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /)
     {% else %}
-              (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /) /)
+    flds({{ loop.index }},:) = (/ '{{ k | str_format(len) }}', '{{ v | str_format(len) }}' /)
     {% endif %}
     {% endfor %}
     {% endif %}
