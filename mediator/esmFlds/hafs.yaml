@@ -1,11 +1,22 @@
 # Syntax
-# field_name: # placeholder (i.e. &tmp1) can be used to copy contents to another entry
-#   field_list: null means default and it is based on source component. it could be also Med_aoflux etc.
-#   src_component: ocn # this could be removed since it could be extracted from first (i.e. Sa_) part of variable name but if this convention changes then yaml will fail so it might be nice to keep it
-#   dst_component: ice
-#   map_type: could be unset (null), bilnr, consf, etc. full list is in esmFlds.F90
-#   map_norm: could be unset (null), none etc. need to get list of available options
-#   map_file: could be unset (null) ...
+# map:
+#   field_name: # placeholder (i.e. &tmp1) can be used to copy contents to another entry
+#     field_list: null means default. fldListFr for source and fldListTo for destination component. it could be also Med_aoflux? not handled yet!
+#     src_component: source component name such as 'atm', 'ocn', etc. It could be extracted from first (i.e. Sa_) part of variable name but if this convention changes then yaml will fail so it might be nice to keep it
+#     dst_component: destination component name such as 'atm', 'ocn', etc.
+#     map_type: bilnr, consf, etc. full list is in esmFlds.F90. it is converted to map[map_type].
+#     map_norm: could be null ('unset'). valid options ?
+#     map_file: could be null ('unset'). the vaild values fmap, vmap and smap. it is converted to [comp_src]2[comp_dst]_[f|s|v]map.
+#
+# mrg:
+#   field_name:
+#     field_list: null means default. fldListFr for source and fldListTo for destination component.
+#     mrg_to: destination component
+#     field: destination field name. if it is set as 'null' then field_name is used in here
+#     mrg_from: source component
+#     mrg_fld: source field name. if it is set as 'null' then field_name is used in here
+#     mrg_type: merge type such as 'copy'. valid options ?
+#     mrg_fracname: ?
 ---
 map:
   Sa_u: &map1
@@ -25,7 +36,6 @@ map:
   Sa_ptem: *map1
   Sa_pslv: *map1
   Sa_dens: *map1
-  Sa_topo: *map1
   Faxa_swnet: &map2
     field_list: null
     src_component: atm
@@ -68,15 +78,14 @@ mrg:
   Sa_u: &mrg1
     field_list: null
     mrg_to: ocn
-    field: null # assign Sa_u
+    field: null
     mrg_from: atm
-    mrg_fld: null # assign Sa_u
+    mrg_fld: null
     mrg_type: copy
     mrg_fracname: null
   Sa_v: *mrg1
   Sa_wspd: *mrg1
   Sa_z: *mrg1
-  Sa_topo: *mrg1
   Sa_ptem: *mrg1
   Sa_tskn: *mrg1
   Sa_pbot: *mrg1
@@ -94,11 +103,11 @@ mrg:
   Faxa_swndf: *mrg1
   Faxa_swvdf: *mrg1
   Faxa_swnet:
-    field_list: null #fldListTo
+    field_list: null
     mrg_to: ocn
     field: Foxx_swnet
     mrg_from: atm
-    mrg_fld: null # assign Faxa_swnet
+    mrg_fld: null
     mrg_type: copy
     mrg_fracname: null
   Faxa_lwnet:
