@@ -1,0 +1,126 @@
+module esmFldsExchange_{{ app }}_mod
+
+  !---------------------------------------------------------------------
+  ! This is a mediator specific routine that determines ALL possible
+  ! fields exchanged between components and their associated routing,
+  ! mapping and merging
+  !---------------------------------------------------------------------
+
+  implicit none
+  public
+
+  public :: esmFldsExchange_{{ app }}
+
+  character(*), parameter :: u_FILE_u = &
+       __FILE__
+
+!===============================================================================
+contains
+!===============================================================================
+
+  subroutine esmFldsExchange_{{ app }}(gcomp, phase, rc)
+
+    use ESMF
+    use NUOPC
+    use med_kind_mod          , only : CX=>SHR_KIND_CX, CS=>SHR_KIND_CS
+    use med_kind_mod          , only : CL=>SHR_KIND_CL, R8=>SHR_KIND_R8
+    use med_utils_mod         , only : chkerr => med_utils_chkerr
+    use esmFlds               , only : med_fldList_type
+    use esmFlds               , only : addfld => med_fldList_AddFld
+    use esmFlds               , only : addmap => med_fldList_AddMap
+    use esmFlds               , only : addmrg => med_fldList_AddMrg
+    {% for comp in comps %}
+    use esmflds               , only : comp{{ comp }}
+    {% endfor %}
+    {% for map_type in map_types %}
+    use esmflds               , only : map{{ map_type }}
+    {% endfor %}
+    use esmflds               , only : coupling_mode, mapnames
+    use esmflds               , only : fldListTo, fldListFr,
+    use esmflds               , only : fldListMed_aoflux, fldListMed_ocnalb
+    use med_internalstate_mod , only : mastertask, logunit
+
+    ! input/output parameters:
+    type(ESMF_GridComp)              :: gcomp
+    character(len=*) , intent(in)    :: phase
+    integer          , intent(inout) :: rc
+
+    ! local variables:
+    integer             :: i, n, maptype
+    character(len=CX)   :: msgString
+    character(len=CL)   :: cvalue
+    character(len=CS)   :: fldname
+    character(len=CS), allocatable :: flds(:)
+    character(len=*) , parameter   :: subname='(esmFldsExchange_{{ app }})'
+    !--------------------------------------
+
+    call ESMF_LogWrite(trim(subname)//": called", ESMF_LOGMSG_INFO)
+    rc = ESMF_SUCCESS
+
+    !=====================================================================
+    ! Scalar information
+    !=====================================================================
+
+    call NUOPC_CompAttributeGet(gcomp, name="ScalarFieldName", value=cvalue, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    do n = 1,ncomps
+       call addfld(fldListFr(n)%flds, trim(cvalue))
+       call addfld(fldListTo(n)%flds, trim(cvalue))
+    end do
+
+    {# loop over target components #}
+    {% for comp in target_comps %}
+    !=====================================================================
+    ! FIELDS TO {{ comp | upper }}
+    !=====================================================================
+    {% for k1, v1 in mapping.items() %}
+    {# check current component is same with target component #}
+    {% if k1[0] == comp %}
+    {# get number of field in the field group and use it in allocate statement #}
+    {% set nfields = v1 | length %}
+    {% set len = 10 %}
+    allocate(flds({{ nfields }}))
+    {# create list of fileds in the same group #}
+    {% if nfields == 1 %}
+    flds = (/ '{{ v1[0][1] | str_format(len) }}' /)
+    {% else %}
+    {# loop over field group and create field list #}
+    {% for f in v1 %}
+    {% if loop.index == 1 %}
+    flds = (/ '{{ f[1] | str_format(len) }}', &
+    {% elif loop.index < loop.length %}
+              '{{ f[1] | str_format(len) }}', &
+    {% else %}
+              '{{ f[1] | str_format(len) }}' /)
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+    {# add code to add fields, define mapping and merging #}
+    do n = 1, size(flds)
+       fldname = trim(flds(n))
+       call addfld(fldListFr(comp{{ v1[0][0] }})%flds, trim(flds(n)))
+       {# add mapping if map type is not 'unset' #}
+       {% if v1[0][4] !=  'unset' %}
+       call addfld(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)))
+       call addmap(fldListFr(comp{{ v1[0][0] }})%flds, trim(flds(n)), comp{{ v1[0][2] }}, map{{ v1[0][4] }}, '{{ v1[0][5] }}', '{{ v1[0][6] }}')
+       {% endif %}
+       {# add merging if merge type is not 'unset' #}
+       {% if k1[4] !=  'unset' %}
+       {% if k1[5] !=  'unset' %}
+       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)), mrg_from=comp{{ v1[0][0] }}, mrg_fld=trim(flds(n)), mrg_type='{{ k1[4] }}')
+       {% else %}
+       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)), mrg_from=comp{{ v1[0][0] }}, mrg_fld=trim(flds(n)), mrg_type='{{ k1[4] }}', mrg_fracname='{{ k1[5] }}')
+       {% endif %}
+       {% endif %}
+    end do
+    deallocate(flds)
+
+    {% endif %}
+    {% endfor %}
+    {% endfor -%}
+
+    {{ '    ' }}call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
+
+  end subroutine esmFldsExchange_{{ app }}
+  
+end module esmFldsExchange_mod

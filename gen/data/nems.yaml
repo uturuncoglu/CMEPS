@@ -1,0 +1,331 @@
+---
+mapping:
+  # unused fields from ice - but that are needed to be realized by the cice cap
+  - ice.Si_avsdf:
+      - destination: med.Si_avsdf
+  - ice.Si_avsdr:
+      - destination: med.Si_avsdr
+  - ice.Si_anidf:
+      - destination: med.Si_anidf
+  - ice.Si_anidr:
+      - destination: med.Si_anidr
+  - ice.Faii_evap:
+      - destination: med.Faii_evap
+  - ice.mean_sw_pen_to_ocn:
+      - destination: med.mean_sw_pen_to_ocn
+  # masks from components for mediator
+  - ice.Si_imask:
+      - destination: med.Si_imask
+  - ocn.So_omask:
+      - destination: ice.So_omask
+      - method: copy
+  # fields to atm
+  - ice.Faii_taux:
+      - destination: atm.Faii_taux
+      - method: consf
+      - normalization: ifrac
+  - ice.Faii_tauy:
+      - destination: atm.Faii_tauy
+      - method: consf
+      - normalization: ifrac
+  - ice.Faii_lat:
+      - destination: atm.Faii_lat
+      - method: consf
+      - normalization: ifrac
+  - ice.Faii_sen:
+      - destination: atm.Faii_sen
+      - method: consf
+      - normalization: ifrac
+  - ice.Faii_lwup:
+      - destination: atm.Faii_lwup
+      - method: consf
+      - normalization: ifrac
+  - ice.Faii_evap:
+      - destination: atm.Faii_evap
+      - method: consf
+      - normalization: ifrac
+  - ice.Si_vice:
+      - destination: atm.Si_vice
+      - method: consf
+      - normalization: ifrac
+  - ice.Si_vsno:
+      - destination: atm.Si_vsno
+      - method: consf
+      - normalization: ifrac
+  - ice.Si_t:
+      - destination: atm.Si_t
+      - method: consf
+      - normalization: ifrac
+  - ocn.So_t:
+      - destination: atm.So_t
+      - method: consf
+      - normalization: ofrac
+  # fields to ocn
+  - atm.Sa_pslv:
+      - destination: ocn.Sa_pslv
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swndr:
+      - destination: ocn.Faxa_swndr
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swndf:
+      - destination: ocn.Faxa_swndf
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swvdr:
+      - destination: ocn.Faxa_swvdr
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swvdf:
+      - destination: ocn.Faxa_swvdf
+      - method: consf
+      - normalization: one
+  - ice.Fioi_swpen_vdr:
+      - destination: ocn.Fioi_swpen_vdr
+      - method: copy
+  - ice.Fioi_swpen_vdf:
+      - destination: ocn.Fioi_swpen_vdf
+      - method: copy
+  - ice.Fioi_swpen_idr:
+      - destination: ocn.Fioi_swpen_idr
+      - method: copy
+  - ice.Fioi_swpen_idf:
+      - destination: ocn.Fioi_swpen_idf
+      - method: copy
+  - atm.Faxa_rain:
+      - destination: ocn.Faxa_rain
+      - method: consf
+      - normalization: one
+  - atm.Faxa_snow:
+      - destination: ocn.Faxa_snow
+      - method: consf
+      - normalization: one
+  - atm.Faxa_taux:
+      - destination: ocn.Faxa_taux
+      - method: consf_aofrac
+      - normalization: aofrac
+  - atm.Faxa_tauy:
+      - destination: ocn.Faxa_tauy
+      - method: consf_aofrac
+      - normalization: aofrac
+  - atm.Fioi_taux:
+      - destination: ocn.Fioi_taux
+      - method: copy
+  - atm.Fioi_tauy:
+      - destination: ocn.Fioi_tauy
+      - method: copy
+  - atm.Faxa_lwnet:
+      - destination: ocn.Faxa_lwnet
+      - method: consf_aofrac
+      - normalization: aofrac
+  - atm.Faxa_sen:
+      - destination: ocn.Faxa_sen
+      - method: consf_aofrac
+      - normalization: aofrac
+  - atm.Faxa_lat:
+      - destination: ocn.Faxa_lat
+      - method: consf_aofrac
+      - normalization: aofrac
+  - ice.Fioi_meltw:
+      - destination: ocn.Fioi_meltw
+      - method: copy
+  - ice.Fioi_melth:
+      - destination: ocn.Fioi_melth
+      - method: copy
+  - ice.Fioi_salt:
+      - destination: ocn.Fioi_salt
+      - method: copy
+  # fields to ice
+  - atm.Faxa_lwdn:
+      - destination: ice.Faxa_lwdn
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swndr:
+      - destination: ice.Faxa_swndr
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swvdr:
+      - destination: ice.Faxa_swvdr
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swndf:
+      - destination: ice.Faxa_swndf
+      - method: consf
+      - normalization: one
+  - atm.Faxa_swvdf:
+      - destination: ice.Faxa_swvdf
+      - method: consf
+      - normalization: one
+  - atm.Faxa_rain:
+      - destination: ice.Faxa_rain
+      - method: consf
+      - normalization: one
+  - atm.Faxa_snow:
+      - destination: ice.Faxa_snow
+      - method: consf
+      - normalization: one
+  - atm.Sa_z:
+      - destination: ice.Sa_z
+      - method: consf
+      - normalization: one
+  - atm.Sa_pbot:
+      - destination: ice.Sa_pbot
+      - method: consf
+      - normalization: one
+  - atm.Sa_tbot:
+      - destination: ice.Sa_tbot
+      - method: consf
+      - normalization: one
+  - atm.Sa_u:
+      - destination: ice.Sa_u
+      - method: consf
+      - normalization: one
+  - atm.Sa_v:
+      - destination: ice.Sa_v
+      - method: consf
+      - normalization: one
+  - atm.Sa_shum:
+      - destination: ice.Sa_shum
+      - method: consf
+      - normalization: one
+  - ocn.So_t:
+      - destination: ice.So_t
+      - method: copy
+  - ocn.So_s:
+      - destination: ice.So_s
+      - method: copy
+  - ocn.So_u:
+      - destination: ice.So_u
+      - method: copy
+  - ocn.So_v:
+      - destination: ice.So_v
+      - method: copy
+  - ocn.So_dhdx:
+      - destination: ice.So_dhdx
+      - method: copy
+  - ocn.So_dhdy:
+      - destination: ice.So_dhdy
+      - method: copy
+  - ocn.Fioo_q:
+      - destination: ice.Fioo_q
+      - method: copy
+
+merging:
+  - atm.Faii_taux:
+      - type: copy
+      - sources: ice.Faii_taux
+  - atm.Faii_tauy:
+      - type: copy
+      - sources: ice.Faii_tauy
+  - atm.Faii_lat:
+      - type: copy
+      - sources: ice.Faii_lat
+  - atm.Faii_sen:
+      - type: copy
+      - sources: ice.Faii_sen
+  - atm.Faii_lwup:
+      - type: copy
+      - sources: ice.Faii_lwup
+  - atm.Faii_evap:
+      - type: copy
+      - sources: ice.Faii_evap
+  - atm.Si_vice:
+      - type: copy
+      - sources: ice.Si_vice
+  - atm.Si_vsno:
+      - type: copy
+      - sources: ice.Si_vsno
+  - atm.Si_t:
+      - type: copy
+      - sources: ice.Si_t
+  - atm.So_t:
+      - type: copy
+      - sources: ocn.So_t
+  - ocn.Sa_pslv:
+      - type: copy
+      - sources: atm.Sa_pslv
+  - ocn.Faxa_rain:
+      - type: copy_with_weights
+      - sources: atm.Faxa_rain
+      - weights: ofrac
+  - ocn.Faxa_snow:
+      - type: copy_with_weights
+      - sources: atm.Faxa_snow
+      - weights: ofrac
+  - ocn.Faxa_lwnet:
+      - type: copy_with_weights
+      - sources: atm.Faxa_lwnet
+      - weights: ofrac
+  - ocn.Fioi_meltw:
+      - type: copy_with_weights
+      - sources: ice.Fioi_meltw
+      - weights: ifrac
+  - ocn.Fioi_melth:
+      - type: copy_with_weights
+      - sources: ice.Fioi_melth
+      - weights: ifrac
+  - ocn.Fioi_salt:
+      - type: copy_with_weights
+      - sources: ice.Fioi_salt
+      - weights: ifrac
+  - ice.Faxa_lwdn:
+      - type: copy
+      - sources: atm.Faxa_lwdn
+  - ice.Faxa_swndr:
+      - type: copy
+      - sources: atm.Faxa_swndr
+  - ice.Faxa_swvdr:
+      - type: copy
+      - sources: atm.Faxa_swvdr
+  - ice.Faxa_swndf:
+      - type: copy
+      - sources: atm.Faxa_swndf
+  - ice.Faxa_swvdf:
+      - type: copy
+      - sources: atm.Faxa_swvdf
+  - ice.Faxa_rain:
+      - type: copy
+      - sources: atm.Faxa_rain
+  - ice.Faxa_snow:
+      - type: copy
+      - sources: atm.Faxa_snow
+  - ice.Sa_z:
+      - type: copy
+      - sources: atm.Sa_z
+  - ice.Sa_pbot:
+      - type: copy
+      - sources: atm.Sa_pbot
+  - ice.Sa_tbot:
+      - type: copy
+      - sources: atm.Sa_tbot
+  - ice.Sa_u:
+      - type: copy
+      - sources: atm.Sa_u
+  - ice.Sa_v:
+      - type: copy
+      - sources: atm.Sa_v
+  - ice.Sa_shum:
+      - type: copy
+      - sources: atm.Sa_shum
+  - ice.So_t:
+      - type: copy
+      - sources: ocn.So_t
+  - ice.So_s:
+      - type: copy
+      - sources: ocn.So_s
+  - ice.So_u:
+      - type: copy
+      - sources: ocn.So_u
+  - ice.So_v:
+      - type: copy
+      - sources: ocn.So_v
+  - ice.So_dhdx:
+      - type: copy
+      - sources: ocn.So_dhdx
+  - ice.So_dhdy:
+      - type: copy
+      - sources: ocn.So_dhdy
+  - ice.Fioo_q:
+      - type: copy
+      - sources: ocn.Fioo_q
