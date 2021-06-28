@@ -46,6 +46,7 @@ def parse(data):
     # parse mapping definition
     mapping = collections.defaultdict(list)
     for field in data['mapping']:
+        fdmatch = True
         mapnorm = 'unset'
         mapfile = 'unset'
         maptype = 'unset'
@@ -86,8 +87,13 @@ def parse(data):
             # get pointer of static mapping file
             if 'map_file' in item.keys():
                 mapfile = item['map_file']
+            # check target variable name is different than the source one
+            if src[1] not in dst[1]:
+                fdmatch = False
 
-        mapping[(dst[0], src[0], maptype, mapnorm, mrgtype, mrgwgt)].append(src+dst+[maptype, mapnorm, mapfile])
+        mapping[(dst[0], src[0], maptype, mapnorm, mrgtype, mrgwgt, fdmatch)].append(src+dst+[maptype, mapnorm, mapfile])
+        for k in mapping.keys():
+            print(k)
 
     # sort mapping dictionary based on target component
     mapping = dict(sorted(mapping.items()))

@@ -35,8 +35,8 @@ contains
     {% for map_type in map_types %}
     use esmflds               , only : map{{ map_type }}
     {% endfor %}
-    use esmflds               , only : coupling_mode, mapnames
-    use esmflds               , only : fldListTo, fldListFr,
+    use esmflds               , only : ncomps, coupling_mode, mapnames
+    use esmflds               , only : fldListTo, fldListFr
     use esmflds               , only : fldListMed_aoflux, fldListMed_ocnalb
     use med_internalstate_mod , only : mastertask, logunit
 
@@ -49,8 +49,8 @@ contains
     integer             :: i, n, maptype
     character(len=CX)   :: msgString
     character(len=CL)   :: cvalue
-    character(len=CS)   :: fldname
-    character(len=CS), allocatable :: flds(:)
+    character(len=CS), allocatable :: flds1(:)
+    character(len=CS), allocatable :: flds2(:,:)
     character(len=*) , parameter   :: subname='(esmFldsExchange_{{ app }})'
     !--------------------------------------
 
@@ -79,41 +79,68 @@ contains
     {# get number of field in the field group and use it in allocate statement #}
     {% set nfields = v1 | length %}
     {% set len = 10 %}
-    allocate(flds({{ nfields }}))
+    {# create 2d array for field list if source and destination field names are different #}
+    {% if k1[6] == False %}
+    allocate(flds2({{ nfields }},2))
+    {# create list of fileds in the same group #}
+    {# loop over field group and create field list #}
+    {% for f in v1 %}
+    flds2({{ loop.index }},:) = (/ '{{ f[1] | str_format(len) }}', '{{ f[3] | str_format(len) }}' /)
+    {% endfor %}
+    {# create 1d array for field list if source and destination field names are same #}
+    {% else %}
+    allocate(flds1({{ nfields }}))
     {# create list of fileds in the same group #}
     {% if nfields == 1 %}
-    flds = (/ '{{ v1[0][1] | str_format(len) }}' /)
+    flds1 = (/ '{{ v1[0][1] | str_format(len) }}' /)
     {% else %}
     {# loop over field group and create field list #}
     {% for f in v1 %}
     {% if loop.index == 1 %}
-    flds = (/ '{{ f[1] | str_format(len) }}', &
+    flds1 = (/ '{{ f[1] | str_format(len) }}', &
     {% elif loop.index < loop.length %}
-              '{{ f[1] | str_format(len) }}', &
+               '{{ f[1] | str_format(len) }}', &
     {% else %}
-              '{{ f[1] | str_format(len) }}' /)
+               '{{ f[1] | str_format(len) }}' /)
     {% endif %}
     {% endfor %}
     {% endif %}
+    {% endif %}
     {# add code to add fields, define mapping and merging #}
-    do n = 1, size(flds)
-       fldname = trim(flds(n))
-       call addfld(fldListFr(comp{{ v1[0][0] }})%flds, trim(flds(n)))
+    {% if k1[6] == False %}
+    {% set src_fld = 'trim(flds2(n,1))' %}
+    {% set dst_fld = 'trim(flds2(n,2))' %}
+    {% set num_fld = 'size(flds2(:,1))' %}
+    {% else %}
+    {% set src_fld = 'trim(flds1(n))' %}
+    {% set dst_fld = 'trim(flds1(n))' %}
+    {% set num_fld = 'size(flds1)' %}
+    {% endif %}
+    do n = 1, {{ num_fld }}
+       {% if v1[0][0] !=  'med' %}
+       call addfld(fldListFr(comp{{ v1[0][0] }})%flds, {{ src_fld }})
+       {% endif %}
        {# add mapping if map type is not 'unset' #}
+       {% if v1[0][2] !=  'med' %}
+       call addfld(fldListTo(comp{{ v1[0][2] }})%flds, {{ dst_fld }})
+       {% endif %}
        {% if v1[0][4] !=  'unset' %}
-       call addfld(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)))
-       call addmap(fldListFr(comp{{ v1[0][0] }})%flds, trim(flds(n)), comp{{ v1[0][2] }}, map{{ v1[0][4] }}, '{{ v1[0][5] }}', '{{ v1[0][6] }}')
+       call addmap(fldListFr(comp{{ v1[0][0] }})%flds, {{ src_fld }}, comp{{ v1[0][2] }}, map{{ v1[0][4] }}, '{{ v1[0][5] }}', '{{ v1[0][6] }}')
        {% endif %}
        {# add merging if merge type is not 'unset' #}
        {% if k1[4] !=  'unset' %}
-       {% if k1[5] !=  'unset' %}
-       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)), mrg_from=comp{{ v1[0][0] }}, mrg_fld=trim(flds(n)), mrg_type='{{ k1[4] }}')
+       {% if k1[5] ==  'unset' %}
+       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, {{ src_fld }}, mrg_from=comp{{ v1[0][0] }}, mrg_fld={{ dst_fld }}, mrg_type='{{ k1[4] }}')
        {% else %}
-       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, trim(flds(n)), mrg_from=comp{{ v1[0][0] }}, mrg_fld=trim(flds(n)), mrg_type='{{ k1[4] }}', mrg_fracname='{{ k1[5] }}')
+       call addmrg(fldListTo(comp{{ v1[0][2] }})%flds, {{ src_fld }}, mrg_from=comp{{ v1[0][0] }}, mrg_fld={{ dst_fld }}, mrg_type='{{ k1[4] }}', mrg_fracname='{{ k1[5] }}')
        {% endif %}
        {% endif %}
     end do
-    deallocate(flds)
+    {% if k1[6] == False %}
+    deallocate(flds2)
+    {% else %}
+    deallocate(flds1)
+    {% endif %}
 
     {% endif %}
     {% endfor %}
@@ -122,5 +149,5 @@ contains
     {{ '    ' }}call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
 
   end subroutine esmFldsExchange_{{ app }}
-  
-end module esmFldsExchange_mod
+
+end module esmFldsExchange_{{ app }}_mod
