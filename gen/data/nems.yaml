@@ -1,8 +1,8 @@
 ---
 mapping:
+  # if .med is in destination field name then only 'call addfld(fldListFr' will be added
+  # if .med is in source field name then only 'call addfld(fldListTo' will be added
   # unused fields from ice - but that are needed to be realized by the cice cap
-  # following fields will have only 'call addfld(fldListFr'
-  # this is defined by adding med. to the destination field name
   - ice.Si_avsdf:
       - destination: med.Si_avsdf
   - ice.Si_avsdr:
@@ -15,10 +15,14 @@ mapping:
       - destination: med.Faii_evap
   - ice.mean_sw_pen_to_ocn:
       - destination: med.mean_sw_pen_to_ocn
+  # field needs to sent to ocn from med
+  - med.Faxa_evap:
+      - destination: ocn.Faxa_evap
   # masks from components for mediator
   - ice.Si_imask:
       - destination: med.Si_imask
   - ocn.So_omask:
+      # - destination: med.So_omask
       - destination: ice.So_omask
       - method: fcopy
   # fractions (computed in med_phases_prep_atm)
@@ -26,15 +30,6 @@ mapping:
       - destination: atm.Si_ifrac
   - atm.Sa_ofrac:
       - destination: med.Sa_ofrac
-  # merge surface stress (custom merge calculation in med_phases_prep_ocn)
-  # following fields will have only 'call addfld(fldListTo'
-  # this is defined by adding med. to the source field name
-  - med.Foxx_taux:
-      - destination: ocn.Foxx_taux
-  - med.Foxx_tauy:
-      - destination: ocn.Foxx_tauy
-  - med.Faxa_evap:
-      - destination: ocn.Faxa_evap
   # fields to atm
   - ice.Faii_taux:
       - destination: atm.Faii_taux
@@ -118,18 +113,18 @@ mapping:
       - method: consf
       - normalization: one
   - atm.Faxa_taux:
-      - destination: ocn.Faxa_taux
+      - destination: ocn.Foxx_taux
       - method: consf_aofrac
       - normalization: aofrac
   - atm.Faxa_tauy:
-      - destination: ocn.Faxa_tauy
+      - destination: ocn.Foxx_tauy
       - method: consf_aofrac
       - normalization: aofrac
-  - atm.Fioi_taux:
-      - destination: ocn.Fioi_taux
+  - ice.Fioi_taux:
+      - destination: ocn.Foxx_taux
       - method: fcopy
-  - atm.Fioi_tauy:
-      - destination: ocn.Fioi_tauy
+  - ice.Fioi_tauy:
+      - destination: ocn.Foxx_tauy
       - method: fcopy
   - atm.Faxa_lwnet:
       - destination: ocn.Faxa_lwnet
@@ -140,6 +135,7 @@ mapping:
       - method: consf_aofrac
       - normalization: aofrac
   - atm.Faxa_lat:
+      # destination: med.Faxa_lat
       - destination: ocn.Faxa_lat
       - method: consf_aofrac
       - normalization: aofrac

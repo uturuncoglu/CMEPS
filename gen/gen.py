@@ -91,9 +91,8 @@ def parse(data):
             if src[1] not in dst[1]:
                 fdmatch = False
 
-        mapping[(dst[0], src[0], maptype, mapnorm, mrgtype, mrgwgt, fdmatch)].append(src+dst+[maptype, mapnorm, mapfile])
-        for k in mapping.keys():
-            print(k)
+        mapping[(dst[0], src[0], maptype, mapnorm, mrgtype, mrgwgt, fdmatch)].\
+            append(src+dst+[maptype, mapnorm, mapfile])
 
     # sort mapping dictionary based on target component
     mapping = dict(sorted(mapping.items()))
