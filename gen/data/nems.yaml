@@ -341,3 +341,64 @@ merging:
   - ice.Fioo_q:
       - type: copy
       - sources: ocn.Fioo_q
+  # custom merges, just for information
+  - ocn.Faxa_evap:
+      - type: sum_with_weights
+      - sources: atm.Faxa_lat
+      - wgt: customwgt
+      - custom: true
+      - comment: 'Custom merge of evaporation from latent heat that also changes the sign \
+                  customwgt(:) = -ofrac(:) / const_lhvap'
+  - ocn.Faxa_sen:
+      - type: sum_with_weights
+      - sources: atm.Faxa_sen
+      - wgts: customwgt
+      - custom: true
+      - comment: 'Custom merge of sensible heat flux that reverses the sign  \
+                  customwgt(:) = -ofrac(:)'
+  - ocn.Foxx_taux:
+      - type: sum_with_weights
+      - sources: [ice.Fioi_taux, atm.Faxa_taux]
+      - wgts: [ifrac, customwgt]
+      - custom: true
+      - comment: 'Custom merge of wind stress component by weighting data coming from ice and atm components \
+                 customwgt(:) = -ofrac(:)'
+  - ocn.Foxx_tauy:
+      - type: sum_with_weights
+      - sources: [ice.Fioi_tauy, atm.Faxa_tauy]
+      - wgts: [ifrac, customwgt]
+      - custom: true
+      - comment: 'Custom merge of wind stress component by weighting data coming from ice and atm components \
+                 customwgt(:) = -ofrac(:)'
+  - ocn.Foxx_swnet_vdr:
+      - type: sum_with_weights
+      - sources: [atm.Faxa_swvdr, ice.Fioi_swpen_vdr]
+      - wgts: [customwgt, ifrac]
+      - custom: true
+      - comment: 'Custom merge of swnet down from atm adjusted by ocean albedo and penetrating sw through ice \
+                  atm.Faxa_swvdr*(1-ice_fraction)*(1-ocn_albedo) + ice.Fioi_swpen_vdr*(ice_fraction) \
+                  customwgt(:) = ofrac(:) * (1.0_R8 - 0.06_R8)'
+  - ocn.Foxx_swnet_vdf:
+      - type: sum_with_weights
+      - sources: [atm.Faxa_swvdf, ice.Fioi_swpen_vdf]
+      - wgts: [customwgt, ifrac]
+      - custom: true
+      - comment: 'Custom merge of swnet down from atm adjusted by ocean albedo and penetrating sw through ice \
+                  atm.Faxa_swvdf*(1-ice_fraction)*(1-ocn_albedo) + ice.Fioi_swpen_vdf*(ice_fraction) \
+                  customwgt(:) = ofrac(:) * (1.0_R8 - 0.06_R8)'
+  - ocn.Foxx_swnet_idr:
+      - type: sum_with_weights
+      - sources: [atm.Faxa_swidr, ice.Fioi_swpen_idr]
+      - wgts: [customwgt, ifrac]
+      - custom: true
+      - comment: 'Custom merge of swnet down from atm adjusted by ocean albedo and penetrating sw through ice \
+                  atm.Faxa_swidr*(1-ice_fraction)*(1-ocn_albedo) + ice.Fioi_swpen_idr*(ice_fraction) \
+                  customwgt(:) = ofrac(:) * (1.0_R8 - 0.06_R8)'
+  - ocn.Foxx_swnet_idf:
+      - type: sum_with_weights
+      - sources: [atm.Faxa_swidf, ice.Fioi_swpen_idf]
+      - wgts: [customwgt, ifrac]
+      - custom: true
+      - comment: 'Custom merge of swnet down from atm adjusted by ocean albedo and penetrating sw through ice \
+                  atm.Faxa_swidf*(1-ice_fraction)*(1-ocn_albedo) + ice.Fioi_swpen_idf*(ice_fraction) \
+                  customwgt(:) = ofrac(:) * (1.0_R8 - 0.06_R8)'

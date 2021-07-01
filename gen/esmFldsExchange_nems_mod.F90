@@ -36,13 +36,13 @@ contains
     use esmFlds               , only : addfld => med_fldList_AddFld
     use esmFlds               , only : addmap => med_fldList_AddMap
     use esmFlds               , only : addmrg => med_fldList_AddMrg
-    use esmflds               , only : compice
     use esmflds               , only : compatm
-    use esmflds               , only : compocn
+    use esmflds               , only : compice
     use esmflds               , only : compmed
-    use esmflds               , only : mapfcopy
+    use esmflds               , only : compocn
     use esmflds               , only : mapconsf
     use esmflds               , only : mapconsf_aofrac
+    use esmflds               , only : mapfcopy
     use esmflds               , only : ncomps, coupling_mode, mapnames
     use esmflds               , only : fldListTo, fldListFr
     use esmflds               , only : fldListMed_aoflux, fldListMed_ocnalb

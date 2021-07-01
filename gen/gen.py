@@ -70,6 +70,12 @@ def parse(data):
                             mrgsrc = mrg_item['sources']
                         if 'weights' in mrg_item:
                             mrgwgt = mrg_item['weights']
+                        if 'custom' in mrg_item:
+                            if mrg_item['custom']:
+                                mrgtype = 'unset'
+                                mrgsrc = 'unset'
+                                mrgwgt = 'unset'
+                                break
                 # parse the list of active component and the connection
                 # among those components
                 comps.append(dst[0])
@@ -101,16 +107,24 @@ def parse(data):
     target_comps = list(set(target_comps))
     target_comps.sort()
 
-    # fill global dictionary
-    global_dict['mapping'] = mapping
-    global_dict['comps'] = list(set(comps))
-    global_dict['target_comps'] = target_comps
+    # sort components
+    comps = list(set(comps))
+    comps.sort()
 
+    # sort connections
     conns = list(set(conns))
     conns.sort()
-    global_dict['conns'] = conns
 
-    global_dict['map_types'] = list(set(map_types))
+    # sort mapping types
+    map_types = list(set(map_types))
+    map_types.sort()
+
+    # fill global dictionary
+    global_dict['mapping'] = mapping
+    global_dict['comps'] = comps
+    global_dict['target_comps'] = target_comps
+    global_dict['conns'] = conns
+    global_dict['map_types'] = map_types
 
     return global_dict
 
