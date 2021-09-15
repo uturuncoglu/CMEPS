@@ -789,7 +789,7 @@ contains
        call esmFldsExchange_cesm(gcomp, phase='advertise', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else if (trim(coupling_mode) == 'nems_orig' .or. trim(coupling_mode) == 'nems_frac' &
-       .or. trim(coupling_mode) == 'nems_orig_data') then
+       .or. trim(coupling_mode) == 'nems_orig_data' .or. trim(coupling_mode) == 'nems_frac_aoflux') then
        call esmFldsExchange_nems(gcomp, phase='advertise', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else if (trim(coupling_mode(1:4)) == 'hafs') then
@@ -2460,7 +2460,9 @@ contains
     endif
 
     ! check and set the component clock against the driver clock
-    call NUOPC_CompCheckSetClock(gcomp, driverClock, checkTimeStep=.false., rc=rc)
+    !call NUOPC_CompCheckSetClock(gcomp, driverClock, checkTimeStep=.false., rc=rc)
+    ! change to compile with older version of ESMF
+    call NUOPC_CompCheckSetClock(gcomp, driverClock, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
     if (.not. stopalarmcreated) then
