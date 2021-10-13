@@ -11,12 +11,13 @@ module med_phases_aofluxes_mod
   !    map aoflux_out from xgrid to both atm and ocn grid
   ! --------------------------------------------------------------------------
 
-  use ESMF                  , only : ESMF_GridComp, ESMF_GridCompGet
+  use ESMF                  , only : operator(/=)
+  use ESMF                  , only : ESMF_GridComp, ESMF_GridCompGet, ESMF_CoordSys_Flag
   use ESMF                  , only : ESMF_Field, ESMF_FieldGet, ESMF_FieldCreate, ESMF_FieldIsCreated, ESMF_FieldDestroy
-  use ESMF                  , only : ESMF_FieldBundle, ESMF_FieldBundleGet
+  use ESMF                  , only : ESMF_FieldBundle, ESMF_FieldBundleGet, ESMF_FieldRegridGetArea
   use ESMF                  , only : ESMF_FieldBundleCreate, ESMF_FieldBundleAdd
   use ESMF                  , only : ESMF_RouteHandle, ESMF_FieldRegrid, ESMF_FieldRegridStore
-  use ESMF                  , only : ESMF_REGRIDMETHOD_CONSERVE_2ND
+  use ESMF                  , only : ESMF_REGRIDMETHOD_CONSERVE_2ND, ESMF_COORDSYS_CART
   use ESMF                  , only : ESMF_TERMORDER_SRCSEQ, ESMF_REGION_TOTAL, ESMF_MESHLOC_ELEMENT, ESMF_MAXSTR
   use ESMF                  , only : ESMF_XGRIDSIDE_B, ESMF_XGRIDSIDE_A, ESMF_END_ABORT, ESMF_LOGERR_PASSTHRU
   use ESMF                  , only : ESMF_Mesh, ESMF_MeshGet, ESMF_XGrid, ESMF_XGridCreate, ESMF_TYPEKIND_R8
@@ -29,6 +30,7 @@ module med_phases_aofluxes_mod
   use med_utils_mod         , only : chkerr       => med_utils_chkerr
   use esmFlds               , only : compatm, compocn, coupling_mode, mapconsd, mapconsf, mapfcopy
   use perf_mod              , only : t_startf, t_stopf
+  use shr_const_mod         , only : rearth => SHR_CONST_REARTH 
 
   implicit none
   private
@@ -93,15 +95,19 @@ module med_phases_aofluxes_mod
      ! input: atm
      real(R8) , pointer :: zbot        (:) => null() ! atm level height
      real(R8) , pointer :: ubot        (:) => null() ! atm velocity, zonal
+     real(R8) , pointer :: usfc        (:) => null() ! atm surface velocity, zonal
      real(R8) , pointer :: vbot        (:) => null() ! atm velocity, meridional
+     real(R8) , pointer :: vsfc        (:) => null() ! atm surface velocity, meridional
      real(R8) , pointer :: thbot       (:) => null() ! atm potential T
      real(R8) , pointer :: shum        (:) => null() ! atm specific humidity
      real(R8) , pointer :: pbot        (:) => null() ! atm bottom pressure
+     real(R8) , pointer :: psfc        (:) => null() ! atm surface pressure
      real(R8) , pointer :: dens        (:) => null() ! atm bottom density
      real(R8) , pointer :: tbot        (:) => null() ! atm bottom surface T
      real(R8) , pointer :: shum_16O    (:) => null() ! atm H2O tracer
      real(R8) , pointer :: shum_HDO    (:) => null() ! atm HDO tracer
      real(R8) , pointer :: shum_18O    (:) => null() ! atm H218O tracer
+     real(R8) , pointer :: garea       (:) => null() ! atm grid area 
      ! local size and computational mask: on aoflux grid
      integer            :: lsize                     ! local size
      integer  , pointer :: mask        (:) => null() ! integer ocn domain mask: 0 <=> inactive cell
@@ -854,6 +860,10 @@ contains
     use ESMF          , only : ESMF_LogWrite, ESMF_LogMsg_Info, ESMF_SUCCESS
     use med_map_mod   , only : med_map_field_packed, med_map_rh_is_created
     use shr_flux_mod  , only : shr_flux_atmocn
+#ifdef UFS_AOFLUX
+    use shr_flux_mod  , only : shr_flux_atmocn_ufs
+    use shr_const_mod , only : shr_const_zvir
+#endif
 
     ! Arguments
     type(ESMF_GridComp)                   :: gcomp
@@ -869,6 +879,7 @@ contains
     real(r8), pointer   :: data_normdst(:)
     real(r8), pointer   :: data_dst(:)
     integer             :: maptype
+    real(r8)            :: qmin = 1.0e-8_r8
     character(*),parameter  :: subName = '(med_aofluxes_update) '
     !-----------------------------------------------------------------------
 
@@ -977,17 +988,38 @@ contains
     !----------------------------------
 
     ! Note pbot, tbot and shum have already been mapped or are available on the aoflux grid
-    if (compute_atm_thbot) then
+    if (compute_atm_dens) then
+#ifdef UFS_AOFLUX
+       ! Add limiting factor to be consistent with UFS atmosphere-ocean flux calculation
+       if (trim(coupling_mode) == 'nems_frac_aoflux') then
+          do n = 1,aoflux_in%lsize
+             if (aoflux_in%mask(n) /= 0._r8) then
+                aoflux_in%shum(n) = max(aoflux_in%shum(n), qmin)
+             end if
+          end do
+       end if
        do n = 1,aoflux_in%lsize
           if (aoflux_in%mask(n) /= 0._r8) then
-             aoflux_in%thbot(n) = aoflux_in%tbot(n)*((100000._R8/aoflux_in%pbot(n))**0.286_R8)
+             aoflux_in%dens(n) = aoflux_in%psfc(n)/(287.058_R8*(1._R8 + 0.608_R8*aoflux_in%shum(n))*aoflux_in%tbot(n))
           end if
        end do
-    end if
-    if (compute_atm_dens) then
+#else
        do n = 1,aoflux_in%lsize
           if (aoflux_in%mask(n) /= 0._r8) then
              aoflux_in%dens(n) = aoflux_in%pbot(n)/(287.058_R8*(1._R8 + 0.608_R8*aoflux_in%shum(n))*aoflux_in%tbot(n))
+          end if
+       end do
+#endif
+    end if
+    if (compute_atm_thbot) then
+       do n = 1,aoflux_in%lsize
+          if (aoflux_in%mask(n) /= 0._r8) then
+#ifdef UFS_AOFLUX
+             ! TODO: check the eq. since origianl one uses tskin
+             aoflux_in%thbot(n) = 0.5_R8*(aoflux_in%tbot(n)+aoflux_in%tocn(n))*(1.0_R8+shr_const_zvir*aoflux_in%shum(n))
+#else
+             aoflux_in%thbot(n) = aoflux_in%tbot(n)*((100000._R8/aoflux_in%pbot(n))**0.286_R8)
+#endif
           end if
        end do
     end if
@@ -995,12 +1027,19 @@ contains
     !----------------------------------
     ! Update atmosphere/ocean surface fluxes
     !----------------------------------
-
+ 
+#ifdef UFS_AOFLUX
+    call shr_flux_atmocn_ufs(&
+         nMax=aoflux_in%lsize, psfc=aoflux_in%psfc, pbot=aoflux_in%pbot, tbot=aoflux_in%tbot, qbot=aoflux_in%shum, &
+         zbot=aoflux_in%zbot, garea=aoflux_in%garea, ubot=aoflux_in%ubot, usfc=aoflux_in%usfc, vbot=aoflux_in%vbot, &
+         vsfc=aoflux_in%vsfc, rbot=aoflux_in%dens, ts=aoflux_in%tocn, mask=aoflux_in%mask, &
+         sen=aoflux_out%sen, lat=aoflux_out%lat, taux=aoflux_out%taux, tauy=aoflux_out%tauy, missval=0.0_r8)
+#else 
     call shr_flux_atmocn (&
          nMax=aoflux_in%lsize, &
          zbot=aoflux_in%zbot, ubot=aoflux_in%ubot, vbot=aoflux_in%vbot, thbot=aoflux_in%thbot, qbot=aoflux_in%shum, &
          s16O=aoflux_in%shum_16O, sHDO=aoflux_in%shum_HDO, s18O=aoflux_in%shum_18O, rbot=aoflux_in%dens, &
-         tbot=aoflux_in%tbot, us=aoflux_in%uocn, vs=aoflux_in%vocn, ts=aoflux_in%tocn, &
+         tbot=aoflux_in%tbot, pbot=aoflux_in%pbot, us=aoflux_in%uocn, vs=aoflux_in%vocn, ts=aoflux_in%tocn, &
          mask=aoflux_in%mask, seq_flux_atmocn_minwind=0.5_r8, &
          sen=aoflux_out%sen, lat=aoflux_out%lat, lwup=aoflux_out%lwup, &
          r16O=aoflux_in%roce_16O, rhdo=aoflux_in%roce_HDO, r18O=aoflux_in%roce_18O, &
@@ -1009,6 +1048,7 @@ contains
          ocn_surface_flux_scheme=ocn_surface_flux_scheme, &
          duu10n=aoflux_out%duu10n, ustar_sv=aoflux_out%ustar, re_sv=aoflux_out%re, ssq_sv=aoflux_out%ssq, &
          missval = 0.0_r8)
+#endif
 
     do n = 1,aoflux_in%lsize
        if (aoflux_in%mask(n) /= 0) then
@@ -1106,6 +1146,11 @@ contains
     integer                    , intent(out)   :: lsize
     type(ESMF_Xgrid), optional , intent(inout) :: xgrid
     integer                    , intent(out)   :: rc
+
+    ! local variables
+    type(ESMF_Field) :: lfield
+    type(ESMF_Mesh) :: lmesh
+    type(ESMF_CoordSys_Flag) :: coordSys
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1141,6 +1186,13 @@ contains
        if (chkerr(rc,__LINE__,u_FILE_u)) return
     end if
 
+    if (trim(coupling_mode) == 'nems_frac_aoflux') then
+       call fldbun_getfldptr(fldbun_a, 'Sa_u10m', aoflux_in%usfc, xgrid=xgrid, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
+       call fldbun_getfldptr(fldbun_a, 'Sa_v10m', aoflux_in%vsfc, xgrid=xgrid, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
+    end if
+
     ! bottom level potential temperature will need to be computed if not received from the atm
     if (compute_atm_thbot) then
        allocate(aoflux_in%thbot(lsize))
@@ -1161,6 +1213,8 @@ contains
     if (compute_atm_dens .or. compute_atm_thbot) then
        call fldbun_getfldptr(fldbun_a, 'Sa_pbot', aoflux_in%pbot, xgrid=xgrid, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
+       call fldbun_getfldptr(fldbun_a, 'Sa_pslv', aoflux_in%psfc, xgrid=xgrid, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
     end if
 
     if (flds_wiso) then
@@ -1174,6 +1228,23 @@ contains
        allocate(aoflux_in%shum_16O(lsize)); aoflux_in%shum_16O(:) = 0._R8
        allocate(aoflux_in%shum_18O(lsize)); aoflux_in%shum_18O(:) = 0._R8
        allocate(aoflux_in%shum_HDO(lsize)); aoflux_in%shum_HDO(:) = 0._R8
+    end if
+
+    ! grid cell area, extract from Sa_z
+    call ESMF_FieldBundleGet(fldbun_a, 'Sa_z', field=lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldRegridGetArea(lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    allocate(aoflux_in%garea(lsize)); aoflux_in%garea(:) = 0._R8
+    call ESMF_FieldGet(lfield, farrayPtr=aoflux_in%garea, rc=rc) 
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(lfield, mesh=lmesh, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_MeshGet(lmesh, coordSys=coordSys, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    if (coordSys /= ESMF_COORDSYS_CART) then
+      ! convert square radians to square meters
+      aoflux_in%garea(:) = aoflux_in%garea(:)*(rearth**2)
     end if
 
     ! ------------------------

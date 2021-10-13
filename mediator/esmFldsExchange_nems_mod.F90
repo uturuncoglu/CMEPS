@@ -105,8 +105,10 @@ contains
       deallocate(flds)
     else if (trim(coupling_mode) == 'nems_frac_aoflux') then
       ! to med: atm and ocn fields required for atm/ocn flux calculation
-      allocate(flds(6))
-      flds = (/'Sa_u   ','Sa_v   ', 'Sa_z   ', 'Sa_tbot', 'Sa_pbot', 'Sa_shum'/)
+      allocate(flds(11))
+      flds = (/'Sa_u   ', 'Sa_v   ', 'Sa_z   ', 'Sa_tbot', 'Sa_pbot', &
+               'Sa_pslv', 'Sa_shum', 'Sa_ptem', 'Sa_dens', 'Sa_u10m', &
+               'Sa_v10m'/)
       do n = 1,size(flds)
          fldname = trim(flds(n))
          call addfld(fldListFr(compatm)%flds, trim(fldname))

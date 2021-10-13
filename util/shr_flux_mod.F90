@@ -12,6 +12,9 @@ module shr_flux_mod
   ! !PUBLIC MEMBER FUNCTIONS:
 
   public :: shr_flux_atmOcn           ! computes atm/ocn fluxes
+#ifdef UFS_AOFLUX
+  public :: shr_flux_atmOcn_ufs       ! computes atm/ocn fluxes consistent with UFS
+#endif
   public :: shr_flux_adjust_constants ! adjust constant values used in flux calculations.
 
   !--- rename kinds for local readability only ---
@@ -396,5 +399,235 @@ contains
     end DO
 
   end subroutine shr_flux_atmOcn
+
+#ifdef UFS_AOFLUX
+  !===============================================================================
+  subroutine shr_flux_atmOcn_ufs(nMax, mask, psfc, pbot, tbot, qbot, zbot, &
+             garea, ubot, usfc, vbot, vsfc, rbot, ts, sen, lat, taux, tauy, missval)
+
+    !-----------------------------------------------------------------------
+    ! ???
+    !-----------------------------------------------------------------------
+
+    use funcphys, only: gpvs, fpvs, fpvsx
+    use machine,  only: kp => kind_phys
+    use physcons, only: eps => con_eps
+    use physcons, only: epsm1 => con_epsm1
+    use physcons, only: grav => con_g
+    use physcons, only: rvrdm1 => con_fvirt
+    use physcons, only: cappa => con_rocp
+    use physcons, only: hvap => con_hvap
+    use physcons, only: cp => con_cp
+    use physcons, only: rd => con_rd
+    use physcons, only: rv => con_rv
+    use physcons, only: hfus => con_hfus
+    use physcons, only: p0 => con_p0
+    use sfc_diff, only: sfc_diff_run
+
+    implicit none
+
+    !--- input arguments --------------------------------
+    integer(IN), intent(in)  :: nMax        ! data vector length
+    integer(IN), intent(in)  :: mask (nMax) ! ocn domain mask
+    real(R8)   , intent(in)  :: psfc(nMax)  ! atm P (surface)                (Pa)
+    real(R8)   , intent(in)  :: pbot(nMax)  ! atm P (bottom)                 (Pa)
+    real(R8)   , intent(in)  :: tbot(nMax)  ! atm T (bottom)                 (K)
+    real(R8)   , intent(in)  :: qbot(nMax)  ! atm specific humidity (bottom) (kg/kg)
+    real(R8)   , intent(in)  :: zbot(nMax)  ! atm level height               (m)
+    real(R8)   , intent(in)  :: garea(nMax) ! grid area                      (m^2)
+    real(R8)   , intent(in)  :: ubot(nMax)  ! atm u wind (bottom)            (m/s)
+    real(R8)   , intent(in)  :: usfc(nMax)  ! atm u wind (surface)           (m/s)
+    real(R8)   , intent(in)  :: vbot(nMax)  ! atm v wind (bottom)            (m/s)    
+    real(R8)   , intent(in)  :: vsfc(nMax)  ! atm v wind (surface)           (m/s)    
+    real(R8)   , intent(in)  :: rbot(nMax)  ! atm density                    (kg/m^3)    
+    real(R8)   , intent(in)  :: ts(nMax)    ! ocn surface temperature        (K)
+    real(R8)   , intent(in), optional :: missval ! masked value
+
+    !--- output arguments -------------------------------
+    real(R8)   , intent(out) :: sen(nMax)   ! heat flux: sensible            (W/m^2)
+    real(R8)   , intent(out) :: lat(nMax)   ! heat flux: latent              (W/m^2)
+    real(R8)   , intent(out) :: taux(nMax)  ! surface stress, zonal          (N)
+    real(R8)   , intent(out) :: tauy(nMax)  ! surface stress, maridional     (N)
+
+    !--- local variables --------------------------------
+    integer                   :: n, iter
+    real(kp)                  :: spval
+    real(kp)                  :: qss       , cpinv     , hvapi
+    real(kp)                  :: elocp     , rch       , tem
+    integer                   :: ivegsrc
+    integer                   :: sfc_z0_type
+    integer, dimension(nMax)  :: vegtype
+    logical, dimension(nMax)  :: flag_iter
+    logical, dimension(nMax)  :: wet       , dry       , icy
+    logical                   :: redrag    , thsfc_loc
+    real(kp), dimension(nMax) :: prsl1     , prslki    , prsik1    , &
+                                 prslk1    , wind      , sigmaf    , &
+                                 shdmax    , z0pert    , ztpert
+    real(kp), dimension(nMax) :: tskin_wat , tskin_lnd , tskin_ice , &
+                                 tsurf_wat , tsurf_lnd , tsurf_ice
+    real(kp), dimension(nMax) :: z0rl_wav
+    real(kp), dimension(nMax) :: z0rl_wat  , z0rl_lnd  , z0rl_ice  , &
+                                 ustar_wat , ustar_lnd , ustar_ice , &
+                                 cm_wat    , cm_lnd    , cm_ice    , &
+                                 ch_wat    , ch_lnd    , ch_ice    , &
+                                 rb_wat    , rb_lnd    , rb_ice    , &
+                                 stress_wat, stress_lnd, stress_ice, &
+                                 fm_wat    , fm_lnd    , fm_ice    , &
+                                 fh_wat    , fh_lnd    , fh_ice    , &
+                                 fm10_wat  , fm10_lnd  , fm10_ice  , &
+                                 fh2_wat   , fh2_lnd   , fh2_ice   , &
+                                 ztmax_wat , ztmax_lnd , ztmax_ice
+    real(kp), dimension(nMax) :: zvfun
+    character(len=1024)       :: errmsg
+    integer                   :: errflg
+ 
+    if (present(missval)) then
+       spval = missval
+    else
+       spval = shr_const_spval
+    endif
+ 
+    !--- addtional constants ---
+    cpinv = 1.0_kp/cp
+    hvapi = 1.0_kp/hvap
+    elocp = hvap/cp
+ 
+    !--- compute some needed quantities ---
+    wind(:) = sqrt(ubot(:)**2+vbot(:)**2)
+
+    !--- compute dimensionless exner function ---
+    prslk1(:) = (pbot(:)/p0)**cappa
+    prsik1(:) = (psfc(:)/p0)**cappa
+    prslki(:) = prsik1(:)/prslk1(:)
+
+    !--- initial values (defaults from FV3/ccpp/data/GFS_typedefs.F90) ---
+    sfc_z0_type = 0
+    vegtype(:) = 0 
+    flag_iter(:) = .true.
+    redrag = .true.  !.false.
+    thsfc_loc = .true.
+    wet(:) = (mask(:) /= 0)
+    dry(:) = .false. ! no land
+    icy(:) = .false. ! no sea-ice
+
+    !--- missing variables ??? ---
+    tskin_wat(:) = ts(:)
+    tsurf_wat(:) = ts(:)
+
+    !--- set initial values ---
+    z0pert(:) = 0.0_kp
+    ztpert(:) = 0.0_kp
+    z0rl_wat(:) = 1.0e-7_kp ! put very small value to allow internal calculation
+    z0rl_lnd(:) = 0.0_kp
+    z0rl_ice(:) = 0.0_kp
+    z0rl_wav(:) = 1.0e-7_kp ! same with z0rl_wat 
+    ustar_wat(:) = 0.0_kp
+    ustar_lnd(:) = 0.0_kp
+    ustar_ice(:) = 0.0_kp
+    cm_wat(:) = 0.0_kp
+    cm_lnd(:) = 0.0_kp
+    cm_ice(:) = 0.0_kp
+    ch_wat(:) = 0.0_kp
+    ch_lnd(:) = 0.0_kp
+    ch_ice(:) = 0.0_kp
+    rb_wat(:) = 0.0_kp
+    rb_lnd(:) = 0.0_kp
+    rb_ice(:) = 0.0_kp
+    stress_wat(:) = 0.0_kp
+    stress_lnd(:) = 0.0_kp
+    stress_ice(:) = 0.0_kp
+    fm_wat(:) = 0.0_kp
+    fm_lnd(:) = 0.0_kp
+    fm_ice(:) = 0.0_kp
+    fh_wat(:) = 0.0_kp
+    fh_lnd(:) = 0.0_kp
+    fh_ice(:) = 0.0_kp
+    fm10_wat(:) = 0.0_kp
+    fm10_lnd(:) = 0.0_kp
+    fm10_ice(:) = 0.0_kp
+    fh2_wat(:) = 0.0_kp
+    fh2_lnd(:) = 0.0_kp
+    fh2_ice(:) = 0.0_kp
+    ztmax_wat(:) = 0.0_kp
+    ztmax_lnd(:) = 0.0_kp
+    ztmax_ice(:) = 0.0_kp
+
+    !--- surface iteration loop ---
+    do iter = 1, 2
+       !--- compute the exchange coefficients ---
+       !--- need only ocean related variables for flux calculation ---
+       !--- passing dummy values for land and ice related arguments ---
+       call sfc_diff_run( &
+            nMax      , rvrdm1     , eps       , &
+            epsm1     , grav       , psfc      , &
+            tbot      , qbot       , zbot      , &
+            garea     , wind       , pbot      , &
+            prslki    , prsik1     , prslk1    , &
+            sigmaf    , vegtype    , shdmax    , &
+            ivegsrc   , z0pert     , ztpert    , & ! z0pert and ztpert - land related 
+            flag_iter , redrag     , usfc      , &
+            vsfc      , sfc_z0_type, wet       , &
+            dry       , icy        , thsfc_loc , &
+            tskin_wat , tskin_lnd  , tskin_ice , &
+            tsurf_wat , tsurf_lnd  , tsurf_ice , &
+            z0rl_wat  , z0rl_lnd   , z0rl_ice  , &
+            z0rl_wav  ,                          &
+            ustar_wat , ustar_lnd  , ustar_ice , &
+            cm_wat    , cm_lnd     , cm_ice    , &
+            ch_wat    , ch_lnd     , ch_ice    , &
+            rb_wat    , rb_lnd     , rb_ice    , &
+            stress_wat, stress_lnd , stress_ice, &
+            fm_wat    , fm_lnd     , fm_ice    , &
+            fh_wat    , fh_lnd     , fh_ice    , &
+            fm10_wat  , fm10_lnd   , fm10_ice  , &
+            fh2_wat   , fh2_lnd    , fh2_ice   , &
+            ztmax_wat , ztmax_lnd  , ztmax_ice , &
+            zvfun     , errmsg     , errflg)
+
+       print*, "ch_wat     = ", iter, minval(ch_wat, mask=(mask(:) /= 0)), maxval(ch_wat, mask=(mask(:) /= 0))
+
+       !--- compute atmosphere-ocean fluxes (ccpp/physics/sfc_ocean.F) ---
+       do n = 1, nMax
+          if (mask(n) /= 0) then
+
+             !--- saturation vapor pressure --- 
+             qss = fpvs(ts(n))
+             qss = eps*qss/(psfc(n)+epsm1*qss)
+
+             !--- rcp  = rho cp ch v ---
+             rch = rbot(n)*cp*ch_wat(n)*wind(n) 
+             !tem = ch_wat(n)*wind(n)
+             !cmm(n) = cm_wat(n)*wind(n)
+             !chh(n) = rbot(i)*tem
+
+             !--- sensible and latent heat flux over open water ---
+             sen(n) = rch*(ts(n)-tbot(n)*prslki(n))
+             !sen(n) = rbot(n)*cp*sen(n)
+             lat(n) = elocp*rch*(qss-qbot(n))
+             !lat(n) = rbot(n)*hvap*lat(n)
+
+             !--- momentum flux components ---
+             !if (wind(n) > 0.0_kp) then
+             !   tem = -rbot(n)*stress_wat(n)/wind(n)
+             !   taux(n) = tem*ubot(n)
+             !   tauy(n) = tem*vbot(n)
+             !else
+             !   taux(n) = 0.0_kp
+             !   tauy(n) = 0.0_kp
+             !end if
+          else
+             !------------------------------------------------------------
+             ! no valid data here -- out of domain
+             !------------------------------------------------------------
+             sen(n) = spval
+             lat(n) = spval
+             !taux(n) = spval
+             !tauy(n) = spval
+          end if
+       end do 
+    end do
+
+  end subroutine shr_flux_atmOcn_ufs
+#endif
 
 end module shr_flux_mod
