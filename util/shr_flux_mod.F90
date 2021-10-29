@@ -423,6 +423,10 @@ contains
     use physcons, only: hfus => con_hfus
     use physcons, only: p0 => con_p0
     use sfc_diff, only: sfc_diff_run
+    use sfc_ocean, only: sfc_ocean_run
+    use GFS_surface_composites_pre, only: GFS_surface_composites_pre_run
+    use GFS_surface_loop_control_part1, only: GFS_surface_loop_control_part1_run
+    use GFS_surface_loop_control_part2, only: GFS_surface_loop_control_part2_run
 
     implicit none
 
@@ -452,7 +456,7 @@ contains
     !--- local variables --------------------------------
     integer                   :: n, iter
     real(kp)                  :: spval
-    real(kp)                  :: qss       , cpinv     , hvapi
+    real(kp)                  :: cpinv     , hvapi
     real(kp)                  :: elocp     , rch       , tem
     integer                   :: ivegsrc
     integer                   :: sfc_z0_type
@@ -480,6 +484,36 @@ contains
     real(kp), dimension(nMax) :: zvfun
     character(len=1024)       :: errmsg
     integer                   :: errflg
+    logical, dimension(nMax)  :: flag_guess
+    integer                   :: nstf_name1 = 0
+    integer                   :: nstf_name2 = 0
+    integer                   :: nstf_name3 = 0
+    integer                   :: nstf_name4 = 0
+    integer                   :: nstf_name5 = 0
+    logical                   :: lseaspray
+    logical, dimension(nMax)  :: use_flake
+    real(kp), dimension(nMax) :: qsurf_wat , cmm_wat   , chh_wat   , &
+                                 gflux_wat , evap_wat  , hflx_wat  , &
+                                 ep_wat 
+    logical, save             :: flag_init = .true.
+    integer                   :: lkm = 0 
+    logical                   :: flag_restart = .false. ! TODO: this could come from configuration
+    logical                   :: frac_grid = .true.
+    logical                   :: cplflx = .true., cplice = .true., cplwav2atm = .false.
+    logical, dimension(nMax)  :: flag_cice, lake
+    real(kp), dimension(nMax) :: landfrac, lakefrac, lakedepth, oceanfrac
+    real(kp), dimension(nMax) :: frland, hice, cice
+    real(kp), dimension(nMax) :: snowd, snowd_lnd, snowd_ice
+    real(kp), dimension(nMax) :: tprcp, tprcp_wat, tprcp_lnd, tprcp_ice
+    real(kp), dimension(nMax) :: uustar, uustar_wat, uustar_lnd, uustar_ice
+    real(kp), dimension(nMax) :: weasd, weasd_lnd, weasd_ice
+    real(kp), dimension(nMax) :: ep1d_ice, tsfc, tsfco, tsfcl, tsfc_wat
+    integer, dimension(nMax)  :: islmsk, islmsk_cice
+    real(kp), dimension(nMax) :: gflx_ice, slmsk
+    real(kp), dimension(nMax) :: qss, qss_wat, qss_lnd, qss_ice
+    real(kp) :: min_lakeice = 0.0_kp, min_seaice = 0.0_kp, tgice = 0.0_kp
+    real(kp) :: huge = 9.9692099683868690E36
+    integer :: kdt = 1
  
     if (present(missval)) then
        spval = missval
@@ -503,14 +537,32 @@ contains
     !--- initial values (defaults from FV3/ccpp/data/GFS_typedefs.F90) ---
     sfc_z0_type = 0
     vegtype(:) = 0 
-    flag_iter(:) = .true.
-    redrag = .true.  !.false.
+    flag_iter(:) = .true. !.false.
+    redrag = .true.
     thsfc_loc = .true.
     wet(:) = (mask(:) /= 0)
     dry(:) = .false. ! no land
     icy(:) = .false. ! no sea-ice
+    lseaspray = .true.
+    use_flake(:) = .false.
 
-    !--- missing variables ??? ---
+    !--- fractions ---
+    landfrac(:) = 0.0_kp
+    lakefrac(:) = 0.0_kp
+    lakedepth(:) = 0.0_kp
+    where (mask(:) /= 0)
+       oceanfrac(:) = 1.0_kp
+    elsewhere
+       oceanfrac(:) = 0.0_kp
+    end where
+    lake(:) = .false.
+    use_flake(:) = .false.
+
+    !--- ice related fields ---
+    hice(:) = 0.0_kp
+    cice(:) = 0.0_kp
+
+    !--- not sure about initialization ---
     tskin_wat(:) = ts(:)
     tsurf_wat(:) = ts(:)
 
@@ -552,80 +604,140 @@ contains
     ztmax_lnd(:) = 0.0_kp
     ztmax_ice(:) = 0.0_kp
 
+    snowd(:) = 0.0_kp
+    snowd_lnd(:) = 0.0_kp
+    snowd_ice(:) = 0.0_kp
+
+    tprcp(:) = 0.0_kp
+    tprcp_wat(:) = 0.0_kp
+    tprcp_lnd(:) = 0.0_kp
+    tprcp_ice(:) = 0.0_kp
+
+    uustar(:) = 0.0_kp
+    uustar_wat(:) = 0.0_kp
+    uustar_lnd(:) = 0.0_kp
+    uustar_ice(:) = 0.0_kp
+
+    weasd(:) = 0.0_kp
+    weasd_lnd(:) = 0.0_kp
+    weasd_ice(:) = 0.0_kp
+
+    ep1d_ice(:) = 0.0_kp
+    tsfco(:) = ts(:)
+
+    gflx_ice(:) = 0.0_kp
+
+    islmsk(:) = 0
+    islmsk_cice(:) = 0
+    slmsk(:) = 0.0_kp
+
+    qss(:) = qbot(:) ! surface specific humidity ? not lowest level
+    qss_wat(:) = 0.0_kp
+    qss_lnd(:) = 0.0_kp
+    qss_ice(:) = 0.0_kp
+
+    !--- generating composites for all GFS surface schemes ---
+    call GFS_surface_composites_pre_run( &
+         nMax      , flag_init  , flag_restart, &
+         lkm       , frac_grid  , flag_cice   , &
+         cplflx    ,                            &
+         cplice    , cplwav2atm , landfrac    , &
+         lakefrac  , lakedepth  , oceanfrac   , &
+         frland    , dry        , icy         , &
+         lake      , use_flake  , wet         , &
+         hice      , cice       , z0rl_wat    , &
+         z0rl_lnd  , z0rl_ice   , snowd       , &
+         snowd_lnd , snowd_ice  , tprcp       , &
+         tprcp_wat , tprcp_lnd  , tprcp_ice   , &
+         uustar    , uustar_wat , uustar_lnd  , &
+         uustar_ice, weasd      , weasd_lnd   , &
+         weasd_ice , ep1d_ice   , tsfc        , &
+         tsfco     , tskin_lnd  , tskin_wat   , &
+         tskin_ice , tsurf_wat  , tsurf_lnd   , &
+         tsurf_ice , gflx_ice   , tgice       , &
+         islmsk    , islmsk_cice, slmsk       , &
+         qss       , qss_wat    , qss_lnd     , &
+         qss_ice   , min_lakeice, min_seaice  , &
+         kdt       , huge       , errmsg      , &
+         errflg)
+
     !--- surface iteration loop ---
     do iter = 1, 2
-       !--- compute the exchange coefficients ---
-       !--- need only ocean related variables for flux calculation ---
-       !--- passing dummy values for land and ice related arguments ---
+       !--- calculate stability parameters ---
        call sfc_diff_run( &
-            nMax      , rvrdm1     , eps       , &
-            epsm1     , grav       , psfc      , &
-            tbot      , qbot       , zbot      , &
-            garea     , wind       , pbot      , &
-            prslki    , prsik1     , prslk1    , &
-            sigmaf    , vegtype    , shdmax    , &
-            ivegsrc   , z0pert     , ztpert    , & ! z0pert and ztpert - land related 
-            flag_iter , redrag     , usfc      , &
-            vsfc      , sfc_z0_type, wet       , &
-            dry       , icy        , thsfc_loc , &
-            tskin_wat , tskin_lnd  , tskin_ice , &
-            tsurf_wat , tsurf_lnd  , tsurf_ice , &
-            z0rl_wat  , z0rl_lnd   , z0rl_ice  , &
-            z0rl_wav  ,                          &
-            ustar_wat , ustar_lnd  , ustar_ice , &
-            cm_wat    , cm_lnd     , cm_ice    , &
-            ch_wat    , ch_lnd     , ch_ice    , &
-            rb_wat    , rb_lnd     , rb_ice    , &
-            stress_wat, stress_lnd , stress_ice, &
-            fm_wat    , fm_lnd     , fm_ice    , &
-            fh_wat    , fh_lnd     , fh_ice    , &
-            fm10_wat  , fm10_lnd   , fm10_ice  , &
-            fh2_wat   , fh2_lnd    , fh2_ice   , &
-            ztmax_wat , ztmax_lnd  , ztmax_ice , &
+            nMax      , rvrdm1     , eps         , &
+            epsm1     , grav       , psfc        , &
+            tbot      , qbot       , zbot        , &
+            garea     , wind       , pbot        , &
+            prslki    , prsik1     , prslk1      , &
+            sigmaf    , vegtype    , shdmax      , &
+            ivegsrc   , z0pert     , ztpert      , &
+            flag_iter , redrag     , usfc        , &
+            vsfc      , sfc_z0_type, wet         , &
+            dry       , icy        , thsfc_loc   , &
+            tskin_wat , tskin_lnd  , tskin_ice   , &
+            tsurf_wat , tsurf_lnd  , tsurf_ice   , &
+            z0rl_wat  , z0rl_lnd   , z0rl_ice    , &
+            z0rl_wav  ,                            &
+            ustar_wat , ustar_lnd  , ustar_ice   , &
+            cm_wat    , cm_lnd     , cm_ice      , &
+            ch_wat    , ch_lnd     , ch_ice      , &
+            rb_wat    , rb_lnd     , rb_ice      , &
+            stress_wat, stress_lnd , stress_ice  , &
+            fm_wat    , fm_lnd     , fm_ice      , &
+            fh_wat    , fh_lnd     , fh_ice      , &
+            fm10_wat  , fm10_lnd   , fm10_ice    , &
+            fh2_wat   , fh2_lnd    , fh2_ice     , &
+            ztmax_wat , ztmax_lnd  , ztmax_ice   , &
             zvfun     , errmsg     , errflg)
 
-       print*, "ch_wat     = ", iter, minval(ch_wat, mask=(mask(:) /= 0)), maxval(ch_wat, mask=(mask(:) /= 0))
+       !--- update flag_guess ---
+       call GFS_surface_loop_control_part1_run( &
+            nMax       , iter      , wind        , &
+            flag_guess , errmsg    , errflg)
 
-       !--- compute atmosphere-ocean fluxes (ccpp/physics/sfc_ocean.F) ---
-       do n = 1, nMax
-          if (mask(n) /= 0) then
+       !--- calculate heat fluxes ---
+       print*, "entering sfc_ocean_run()", iter
+       call sfc_ocean_run( &
+            nMax       , hvap      , cp          , &
+            rd         , eps       , epsm1       , &
+            rvrdm1     , psfc      , ubot        , &
+            vbot       , tbot      , qbot        , &
+            tskin_wat  , cm_wat    , ch_wat      , &
+            lseaspray  , fm_wat    , fm10_wat    , &
+            pbot       , prslki    , wet         , &
+            use_flake  , wind      , flag_iter   , &
+            qsurf_wat  , cmm_wat   , chh_wat     , &
+            gflux_wat  , evap_wat  , hflx_wat    , &
+            ep_wat     , errmsg    , errflg, 'a')
+       print*, "exiting sfc_ocean_run()", iter
 
-             !--- saturation vapor pressure --- 
-             qss = fpvs(ts(n))
-             qss = eps*qss/(psfc(n)+epsm1*qss)
+       !print*, "lat = ", iter, minval(evap_wat, mask=(mask(:) /= 0)), maxval(evap_wat, mask=(mask(:) /= 0))
+       !print*, "sen = ", iter, minval(hflx_wat, mask=(mask(:) /= 0)), maxval(hflx_wat, mask=(mask(:) /= 0))
 
-             !--- rcp  = rho cp ch v ---
-             rch = rbot(n)*cp*ch_wat(n)*wind(n) 
-             !tem = ch_wat(n)*wind(n)
-             !cmm(n) = cm_wat(n)*wind(n)
-             !chh(n) = rbot(i)*tem
-
-             !--- sensible and latent heat flux over open water ---
-             sen(n) = rch*(ts(n)-tbot(n)*prslki(n))
-             !sen(n) = rbot(n)*cp*sen(n)
-             lat(n) = elocp*rch*(qss-qbot(n))
-             !lat(n) = rbot(n)*hvap*lat(n)
-
-             !--- momentum flux components ---
-             !if (wind(n) > 0.0_kp) then
-             !   tem = -rbot(n)*stress_wat(n)/wind(n)
-             !   taux(n) = tem*ubot(n)
-             !   tauy(n) = tem*vbot(n)
-             !else
-             !   taux(n) = 0.0_kp
-             !   tauy(n) = 0.0_kp
-             !end if
-          else
-             !------------------------------------------------------------
-             ! no valid data here -- out of domain
-             !------------------------------------------------------------
-             sen(n) = spval
-             lat(n) = spval
-             !taux(n) = spval
-             !tauy(n) = spval
-          end if
-       end do 
+       !--- update flag_guess and flag_iter ---
+       call GFS_surface_loop_control_part2_run( &
+            nMax       , iter      , wind        , &
+            flag_guess , flag_iter , dry         , &
+            wet        , icy       , nstf_name1  , &
+            errmsg     , errflg)
     end do
+
+    !--- unit conversion ---
+    do n = 1, nMax
+       if (mask(n) /= 0) then
+          sen(n) = hflx_wat(n)*rbot(n)*cp
+          lat(n) = evap_wat(n)*rbot(n)*hvap
+       else
+          sen(n) = spval
+          lat(n) = spval
+       end if
+    end do
+
+    flag_init = .false.
+
+    !print*, "lat = ", minval(lat, mask=(mask(:) /= 0)), maxval(lat, mask=(mask(:) /= 0))
+    !print*, "sen = ", minval(sen, mask=(mask(:) /= 0)), maxval(sen, mask=(mask(:) /= 0))
 
   end subroutine shr_flux_atmOcn_ufs
 #endif

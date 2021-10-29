@@ -872,15 +872,18 @@ contains
     integer               , intent(out)   :: rc
     !
     ! Local variables
-    type(InternalState) :: is_local
-    type(ESMF_Field)    :: field_src
-    type(ESMF_Field)    :: field_dst
-    integer             :: n,i,nf                     ! indices
-    real(r8), pointer   :: data_normdst(:)
-    real(r8), pointer   :: data_dst(:)
-    integer             :: maptype
-    real(r8)            :: qmin = 1.0e-8_r8
-    character(*),parameter  :: subName = '(med_aofluxes_update) '
+    type(InternalState)      :: is_local
+    type(ESMF_Field)         :: field_src
+    type(ESMF_Field)         :: field_dst
+    type(ESMF_Field)         :: lfield
+    type(ESMF_Mesh)          :: lmesh
+    type(ESMF_CoordSys_Flag) :: coordSys
+    integer                  :: n,i,nf                     ! indices
+    real(r8), pointer        :: data_normdst(:)
+    real(r8), pointer        :: data_dst(:)
+    integer                  :: maptype
+    real(r8)                 :: qmin = 1.0e-8_r8
+    character(*),parameter   :: subName = '(med_aofluxes_update) '
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1024,6 +1027,22 @@ contains
        end do
     end if
 
+#ifdef UFS_AOFLUX
+    ! fill area information
+    call ESMF_FieldBundleGet(is_local%wrap%FBArea(compatm), 'area', field=lfield, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(lfield, farrayPtr=aoflux_in%garea, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_FieldGet(lfield, mesh=lmesh, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_MeshGet(lmesh, coordSys=coordSys, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    if (coordSys /= ESMF_COORDSYS_CART) then
+       ! convert square radians to square meters
+       aoflux_in%garea(:) = aoflux_in%garea(:)*(rearth**2)
+    end if
+#endif
+
     !----------------------------------
     ! Update atmosphere/ocean surface fluxes
     !----------------------------------
@@ -1146,11 +1165,6 @@ contains
     integer                    , intent(out)   :: lsize
     type(ESMF_Xgrid), optional , intent(inout) :: xgrid
     integer                    , intent(out)   :: rc
-
-    ! local variables
-    type(ESMF_Field) :: lfield
-    type(ESMF_Mesh) :: lmesh
-    type(ESMF_CoordSys_Flag) :: coordSys
     !-----------------------------------------------------------------------
 
     rc = ESMF_SUCCESS
@@ -1230,22 +1244,8 @@ contains
        allocate(aoflux_in%shum_HDO(lsize)); aoflux_in%shum_HDO(:) = 0._R8
     end if
 
-    ! grid cell area, extract from Sa_z
-    call ESMF_FieldBundleGet(fldbun_a, 'Sa_z', field=lfield, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_FieldRegridGetArea(lfield, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    ! allocate grid cell area and initialize
     allocate(aoflux_in%garea(lsize)); aoflux_in%garea(:) = 0._R8
-    call ESMF_FieldGet(lfield, farrayPtr=aoflux_in%garea, rc=rc) 
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_FieldGet(lfield, mesh=lmesh, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-    call ESMF_MeshGet(lmesh, coordSys=coordSys, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-    if (coordSys /= ESMF_COORDSYS_CART) then
-      ! convert square radians to square meters
-      aoflux_in%garea(:) = aoflux_in%garea(:)*(rearth**2)
-    end if
 
     ! ------------------------
     ! input fields from ocn on aoflux_grid
