@@ -1052,7 +1052,9 @@ contains
          nMax=aoflux_in%lsize, psfc=aoflux_in%psfc, pbot=aoflux_in%pbot, tbot=aoflux_in%tbot, qbot=aoflux_in%shum, &
          zbot=aoflux_in%zbot, garea=aoflux_in%garea, ubot=aoflux_in%ubot, usfc=aoflux_in%usfc, vbot=aoflux_in%vbot, &
          vsfc=aoflux_in%vsfc, rbot=aoflux_in%dens, ts=aoflux_in%tocn, mask=aoflux_in%mask, &
-         sen=aoflux_out%sen, lat=aoflux_out%lat, taux=aoflux_out%taux, tauy=aoflux_out%tauy, missval=0.0_r8)
+         sen=aoflux_out%sen, lat=aoflux_out%lat, lwup=aoflux_out%lwup, evap=aoflux_out%evap, &
+         taux=aoflux_out%taux, tauy=aoflux_out%tauy, &
+         missval=0.0_r8)
 #else 
     call shr_flux_atmocn (&
          nMax=aoflux_in%lsize, &

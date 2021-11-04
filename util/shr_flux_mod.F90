@@ -55,14 +55,10 @@ module shr_flux_mod
 
 #ifdef UFS_AOFLUX
   real(kp), allocatable, dimension(:) :: z0rl        , z0rl_wav  ,            &
-                                         z0rl_wat    , z0rl_lnd  , z0rl_ice  !, &
-  !                                       tskin       ,                         &
-  !                                       tskin_wat   , tskin_lnd , tskin_ice , &
-  !                                       fm_wat      , fm_lnd    , fm_ice    , &
-  !                                       fh_wat      , fh_lnd    , fh_ice    , &
-  !                                       fm10_wat    , fm10_lnd  , fm10_ice  !, &
-  !                                       ustar       , ustar_wat , ustar_lnd , &
-  !                                       ustar_ice
+                                         z0rl_wat    , z0rl_lnd  , z0rl_ice , &
+                                         ustar       , fm        , fh       , &
+                                         fm10        , hflx      !, evap 
+  
 #endif
 
 !===============================================================================
@@ -418,10 +414,11 @@ contains
 #ifdef UFS_AOFLUX
   !===============================================================================
   subroutine shr_flux_atmOcn_ufs(nMax, mask, psfc, pbot, tbot, qbot, zbot, &
-             garea, ubot, usfc, vbot, vsfc, rbot, ts, sen, lat, taux, tauy, missval)
+             garea, ubot, usfc, vbot, vsfc, rbot, ts, sen, lat, lwup, evap, &
+             taux, tauy, missval)
 
     !-----------------------------------------------------------------------
-    ! ???
+    ! Atmosphere-ocean flux calculation for UFS
     !-----------------------------------------------------------------------
 
     use funcphys, only: gpvs, fpvs, fpvsx
@@ -437,6 +434,7 @@ contains
     use physcons, only: hfus => con_hfus
     use physcons, only: p0 => con_p0
     use physcons, only: tice => con_tice
+    use physcons, only: sbc => con_sbc
     use sfc_diff, only: sfc_diff_run
     use sfc_ocean, only: sfc_ocean_run
     use GFS_surface_composites_pre, only: GFS_surface_composites_pre_run
@@ -466,85 +464,79 @@ contains
     !--- output arguments -------------------------------
     real(R8)   , intent(out) :: sen(nMax)   ! heat flux: sensible            (W/m^2)
     real(R8)   , intent(out) :: lat(nMax)   ! heat flux: latent              (W/m^2)
+    real(R8)   , intent(out) :: lwup(nMax)  ! heat flux: lw upward           (W/m^2)
+    real(R8)   , intent(out) :: evap(nMax)  ! heat flux: evap                ((kg/s)/m^2)
     real(R8)   , intent(out) :: taux(nMax)  ! surface stress, zonal          (N)
     real(R8)   , intent(out) :: tauy(nMax)  ! surface stress, maridional     (N)
 
     !--- local variables --------------------------------
-    integer                   :: n           , iter      , ivegsrc   , &
-                                 sfc_z0_type , errflg    , nstf_name1, &
-                                 lkm         , nthreads  , levs      , &
-                                 isot        , kice      , km 
-    real(kp)                  :: spval       , cpinv     , hvapi     , &
-                                 elocp       , rch       , tem       , &
-                                 min_lakeice , min_seaice, tgice     , &
-                                 h0facu      , h0facs
-    logical                   :: redrag      , thsfc_loc , lseaspray , &
-                                 flag_restart, frac_grid , cplflx    , &
-                                 cplice      , cplwav2atm, lheatstrg
-    character(len=1024)       :: errmsg
-    integer, dimension(nMax)  :: vegtype     , islmsk    , stype     , &
-                                 islmsk_cice , vtype     , slope
-    real(kp), dimension(nMax) :: prsl1       , prslki    , prsik1    , &
-                                 prslk1      , wind      , sigmaf    , &
-                                 shdmax      , z0pert    , ztpert    , &
-                                 tsurf_wat   , tsurf_lnd , tsurf_ice , &
-                                 zvfun       , cm        , cm_wat    , &
-                                 cm_lnd      , cm_ice    , ch        , &
-                                 ch_wat      , ch_lnd    , ch_ice    , &
-                                 rb          , rb_wat    , rb_lnd    , &
-                                 rb_ice      , stress    ,             &
-                                 stress_wat  , stress_lnd, stress_ice, &
-                                 ztmax_wat   , ztmax_lnd , ztmax_ice , &
-                                 landfrac    , lakefrac  , lakedepth , &
-                                 oceanfrac   , frland    , hice      , &
-                                 cice        , snowd     , snowd_lnd , &
-                                 snowd_ice   , tprcp     , tprcp_wat , &
-                                 tprcp_lnd   , tprcp_ice , weasd     , &
-                                 weasd_lnd   , weasd_ice , hflxq     , &
-                                 tsfco       , tsfcl     , tisfc     , &
-                                 slmsk       , hffac     , &
-                                 qss         , qss_wat   , qss_lnd   , &
-                                 qss_ice     , vfrac     ,             &
-                                 tskin       ,                         &
-                                 tskin_wat   , tskin_lnd , tskin_ice , &
-                                 ustar       ,                         &
-                                 ustar_wat   , ustar_lnd , ustar_ice , &
-                                 fm          ,                         &
-                                 fm_wat      , fm_lnd    , fm_ice    , &
-                                 fh          ,                         &
-                                 fh_wat      , fh_lnd    , fh_ice    , &
-                                 fm10        ,                         &
-                                 fm10_wat    , fm10_lnd  , fm10_ice  , &
-                                 fh2         ,                         & 
-                                 fh2_wat     , fh2_lnd   , fh2_ice   , &
-                                 cmm         ,                         &
-                                 cmm_wat     , cmm_lnd   , cmm_ice   , &
-                                 chh         ,                         &
-                                 chh_wat     , chh_lnd   , chh_ice   , &
-                                 gflx        ,                         &
-                                 gflx_wat    , gflx_lnd  , gflx_ice  , &
-                                 ep1d        ,                         &
-                                 ep1d_wat    , ep1d_lnd  , ep1d_ice  , &
-                                 evap        ,                         &
-                                 evap_wat    , evap_lnd  , evap_ice  , &
-                                 hflx        ,                         &
-                                 hflx_wat    , hflx_lnd  , hflx_ice  , &
-                                 tsfc        ,                         &
-                                 tsfc_wat    , tsfc_lnd  , tsfc_ice
-    real(kp), dimension(nMax,1) :: tiice
-    real(kp), dimension(nMax,1) :: stc
-    logical, dimension(nMax)  :: flag_iter   , flag_guess, use_flake , &
-                                 wet         , dry       , icy       , &
-                                 flag_cice   , lake
+    integer                     :: n           , iter      , ivegsrc   , &
+                                   sfc_z0_type , errflg    , nstf_name1, &
+                                   lkm         , nthreads  , kice      , &
+                                   km 
+    real(kp)                    :: spval       , cpinv     , hvapi     , &
+                                   elocp       , rch       , tem       , &
+                                   min_lakeice , min_seaice, tgice     , &
+                                   h0facu      , h0facs
+    logical                     :: redrag      , thsfc_loc , lseaspray , &
+                                   flag_restart, frac_grid , cplflx    , &
+                                   cplice      , cplwav2atm, lheatstrg
+    character(len=1024)         :: errmsg
+    integer, dimension(nMax)    :: vegtype     , islmsk    , islmsk_cice 
+    real(kp), dimension(nMax)   :: prsl1       , prslki    , prsik1    , &
+                                   prslk1      , wind      , sigmaf    , &
+                                   shdmax      , z0pert    , ztpert    , &
+                                   tsurf_wat   , tsurf_lnd , tsurf_ice , &
+                                   zvfun       , cm        , cm_wat    , &
+                                   cm_lnd      , cm_ice    , ch        , &
+                                   ch_wat      , ch_lnd    , ch_ice    , &
+                                   rb          , rb_wat    , rb_lnd    , &
+                                   rb_ice      , stress    ,             &
+                                   stress_wat  , stress_lnd, stress_ice, &
+                                   ztmax_wat   , ztmax_lnd , ztmax_ice , &
+                                   landfrac    , lakefrac  , lakedepth , &
+                                   oceanfrac   , frland    , hice      , &
+                                   cice        , snowd     , snowd_lnd , &
+                                   snowd_ice   , tprcp     , tprcp_wat , &
+                                   tprcp_lnd   , tprcp_ice , weasd     , &
+                                   weasd_lnd   , weasd_ice , hflxq     , &
+                                   tsfco       , tsfcl     , tisfc     , &
+                                   slmsk       , hffac     , vfrac     , &
+                                   qss         ,                         &
+                                   qss_wat     , qss_lnd   , qss_ice   , &
+                                   tskin       ,                         &
+                                   tskin_wat   , tskin_lnd , tskin_ice , &
+                                   ustar_wat   , ustar_lnd , ustar_ice , &
+                                   fm_wat      , fm_lnd    , fm_ice    , &
+                                   fh_wat      , fh_lnd    , fh_ice    , &
+                                   fm10_wat    , fm10_lnd  , fm10_ice  , &
+                                   fh2         ,                         & 
+                                   fh2_wat     , fh2_lnd   , fh2_ice   , &
+                                   cmm         ,                         &
+                                   cmm_wat     , cmm_lnd   , cmm_ice   , &
+                                   chh         ,                         &
+                                   chh_wat     , chh_lnd   , chh_ice   , &
+                                   gflx        ,                         &
+                                   gflx_wat    , gflx_lnd  , gflx_ice  , &
+                                   ep1d        ,                         &
+                                   ep1d_wat    , ep1d_lnd  , ep1d_ice  , &
+                                   evap_wat    , evap_lnd  , evap_ice  , &
+                                   hflx_wat    , hflx_lnd  , hflx_ice  , &
+                                   tsfc        ,                         &
+                                   tsfc_wat    , tsfc_lnd  , tsfc_ice
+    real(kp), dimension(nMax,1) :: tiice       , stc
+    logical, dimension(nMax)    :: flag_iter   , flag_guess, use_flake , &
+                                   wet         , dry       , icy       , &
+                                   flag_cice   , lake
 
     !--- local variables that are carried out -----------
-    logical, save             :: flag_init = .true.
-    integer, save             :: kdt = 0
+    logical, save               :: flag_init = .true.
+    integer, save               :: kdt = 0
 
     !--- parameters -------------------------------------
-    real(kp), parameter :: huge = 9.9692099683868690E36
-    real(kp), parameter :: zero = 0.0_kp
-    real(kp), parameter :: clear_val = zero
+    real(kp), parameter         :: huge = 9.9692099683868690E36
+    real(kp), parameter         :: zero = 0.0_kp
+    real(kp), parameter         :: clear_val = zero
 
     !--- missing value --- 
     if (present(missval)) then
@@ -567,117 +559,100 @@ contains
     prslki(:) = prsik1(:)/prslk1(:) ! ratio_of_exner_function_between_midlayer_and_interface_at_lowest_model_layer
 
     !--- initialization of variables ---
-    !levs         = 127            ! vertical_layer_dimension, npz in input.nml
-    !isot         = 1              ! control_for_soil_type_dataset, isot in input.nml
-    !stype(:)     = 0              ! soil_type_classification, no land
-    !vtype(:)     = 0              ! vegetation_type_classification, no land
-    !slope(:)     = 0              ! surface_slope_classification
-    !vfrac(:)     = 0.0_kp         ! vegetation_area_fraction, no land set it to zero
+    kice          = 1              ! vertical_dimension_of_sea_ice
+    km            = 1              ! vertical_dimension_of_soil
+    tiice(:,:)    = 0.0_kp         ! temperature_in_ice_layer
+    lheatstrg     = .true.         ! flag_for_canopy_heat_storage_in_land_surface_scheme
+    h0facu        = 0.25_kp        ! multiplicative_tuning_parameter_for_reduced_surface_heat_fluxes_due_to_canopy_heat_storage
+    h0facs        = 1.0            ! multiplicative_tuning_parameter_for_reduced_latent_heat_flux_due_to_canopy_heat_storage
+    hflxq(:)      = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux_reduced_by_surface_roughness_and_vegetation
+    hffac(:)      = 0.0_kp         ! surface_upward_sensible_heat_flux_reduction_factor
+    stc(:,:)      = 0.0_kp         ! soil_temperature
 
-    kice         = 1              ! vertical_dimension_of_sea_ice
-    km           = 1              ! vertical_dimension_of_soil
-    tiice(:,:)   = 0.0_kp         ! temperature_in_ice_layer
-    lheatstrg    = .true.         ! flag_for_canopy_heat_storage_in_land_surface_scheme
-    h0facu       = 0.25_kp        ! multiplicative_tuning_parameter_for_reduced_surface_heat_fluxes_due_to_canopy_heat_storage
-    h0facs       = 1.0            ! multiplicative_tuning_parameter_for_reduced_latent_heat_flux_due_to_canopy_heat_storage
-    hflxq(:)     = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux_reduced_by_surface_roughness_and_vegetation
-    hffac(:)     = 0.0_kp         ! surface_upward_sensible_heat_flux_reduction_factor
-    stc(:,:)     = 0.0_kp         ! soil_temperature
-
-    flag_restart = .false.        ! flag_for_restart, restart run
-    lkm          = 0              ! control_for_lake_surface_scheme
-    frac_grid    = .true.         ! flag_for_fractional_landmask
-    flag_cice(:) = .true.         ! flag_for_cice
-    cplflx       = .true.         ! flag_for_surface_flux_coupling
-    cplice       = .true.         ! flag_for_sea_ice_coupling
-    cplwav2atm   = .false.        ! flag_for_one_way_ocean_wave_coupling_to_atmosphere
+    flag_restart  = .false.        ! flag_for_restart, restart run
+    lkm           = 0              ! control_for_lake_surface_scheme
+    frac_grid     = .true.         ! flag_for_fractional_landmask
+    flag_cice(:)  = .true.         ! flag_for_cice
+    cplflx        = .true.         ! flag_for_surface_flux_coupling
+    cplice        = .true.         ! flag_for_sea_ice_coupling
+    cplwav2atm    = .false.        ! flag_for_one_way_ocean_wave_coupling_to_atmosphere
     where (mask(:) /= 0)
-    landfrac(:)  = 0.0_kp         ! land_area_fraction
+    landfrac(:)   = 0.0_kp         ! land_area_fraction
     elsewhere
-    landfrac(:)  = 1.0_kp         ! land_area_fraction
+    landfrac(:)   = 1.0_kp         ! land_area_fraction
     end where 
-    lakefrac(:)  = 0.0_kp         ! lake_area_fraction
-    lakedepth(:) = 0.0_kp         ! lake_depth
+    lakefrac(:)   = 0.0_kp         ! lake_area_fraction
+    lakedepth(:)  = 0.0_kp         ! lake_depth
     where (mask(:) /= 0)
-    oceanfrac(:) = 1.0_kp         ! sea_area_fraction
+    oceanfrac(:)  = 1.0_kp         ! sea_area_fraction
     elsewhere
-    oceanfrac(:) = 0.0_kp         ! sea_area_fraction
+    oceanfrac(:)  = 0.0_kp         ! sea_area_fraction
     end where 
-    frland(:)    = 0.0_kp         ! land_area_fraction_for_microphysics
-    dry(:)       = .false.        ! flag_nonzero_land_surface_fraction, no land
-    icy(:)       = .false.        ! flag_nonzero_sea_ice_surface_fraction, no sea-ice
-    lake(:)      = .false.        ! flag_nonzero_lake_surface_fraction
-    use_flake(:) = .false.        ! flag_for_using_flake
-    wet(:)       = .false.        ! (mask(:) /= 0) ! flag_nonzero_wet_surface_fraction
-    hice(:)      = 0.0_kp         ! sea_ice_thickness
-    cice(:)      = 0.0_kp         ! sea_ice_area_fraction_of_sea_area_fraction
+    frland(:)     = 0.0_kp         ! land_area_fraction_for_microphysics
+    dry(:)        = .false.        ! flag_nonzero_land_surface_fraction, no land
+    icy(:)        = .false.        ! flag_nonzero_sea_ice_surface_fraction, no sea-ice
+    lake(:)       = .false.        ! flag_nonzero_lake_surface_fraction
+    use_flake(:)  = .false.        ! flag_for_using_flake
+    wet(:)        = .false.        ! flag_nonzero_wet_surface_fraction
+    hice(:)       = 0.0_kp         ! sea_ice_thickness
+    cice(:)       = 0.0_kp         ! sea_ice_area_fraction_of_sea_area_fraction
 
     if (flag_init) then
-       allocate(z0rl_wat(nMax))
-       z0rl_wat(:) = 0.0_kp       ! surface_roughness_length_over_water
-       allocate(z0rl_lnd(nMax))
-       z0rl_lnd(:) = 0.0_kp       ! surface_roughness_length_over_land
-       allocate(z0rl_ice(nMax))
-       z0rl_ice(:) = 0.0_kp       ! surface_roughness_length_over_ice
-       allocate(z0rl_wav(nMax))
-       z0rl_wav(:) = 0.0_kp       ! surface_roughness_length_from_wave_model
        allocate(z0rl(nMax))
-       z0rl(:)     = 0.0_kp       ! surface_roughness_length
+       z0rl(:)    = 0.0_kp         ! surface_roughness_length
+       allocate(z0rl_wat(nMax))
+       z0rl_wat(:) = 0.0_kp        ! surface_roughness_length_over_water
+       allocate(z0rl_lnd(nMax))
+       z0rl_lnd(:) = 0.0_kp        ! surface_roughness_length_over_land
+       allocate(z0rl_ice(nMax))
+       z0rl_ice(:) = 0.0_kp        ! surface_roughness_length_over_ice
+       allocate(z0rl_wav(nMax))
+       z0rl_wav(:) = 0.0_kp        ! surface_roughness_length_from_wave_model
     end if
 
-    snowd(:)     = 0.0_kp         ! lwe_surface_snow
-    snowd_lnd(:) = 0.0_kp         ! surface_snow_thickness_water_equivalent_over_land
-    snowd_ice(:) = 0.0_kp         ! surface_snow_thickness_water_equivalent_over_ice
-    tprcp(:)     = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep
-    tprcp_wat(:) = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_water
-    tprcp_lnd(:) = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_land
-    tprcp_ice(:) = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_ice
+    snowd(:)      = 0.0_kp         ! lwe_surface_snow
+    snowd_lnd(:)  = 0.0_kp         ! surface_snow_thickness_water_equivalent_over_land
+    snowd_ice(:)  = 0.0_kp         ! surface_snow_thickness_water_equivalent_over_ice
+    tprcp(:)      = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep
+    tprcp_wat(:)  = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_water
+    tprcp_lnd(:)  = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_land
+    tprcp_ice(:)  = 0.0_kp         ! nonnegative_lwe_thickness_of_precipitation_amount_on_dynamics_timestep_over_ice
     
-    !if (flag_init) then
-    !   allocate(ustar(nMax))
-       ustar(:)     = 0.0_kp      ! surface_friction_velocity
-    !   allocate(ustar_wat(nMax))
-       ustar_wat(:) = 0.0_kp      ! surface_friction_velocity_over_water
-    !   allocate(ustar_lnd(nMax))
-       ustar_lnd(:) = 0.0_kp      ! surface_friction_velocity_over_land
-    !   allocate(ustar_ice(nMax))
-       ustar_ice(:) = 0.0_kp      ! surface_friction_velocity_over_ice
-    !end if
-    weasd(:)     = 0.0_kp         ! lwe_thickness_of_surface_snow_amount
-    weasd_lnd(:) = 0.0_kp         ! water_equivalent_accumulated_snow_depth_over_land
-    weasd_ice(:) = 0.0_kp         ! water_equivalent_accumulated_snow_depth_over_ice
+    if (flag_init) then
+       allocate(ustar(nMax))
+       ustar(:)   = 0.0_kp         ! surface_friction_velocity
+    end if
 
-    !if (flag_init) then
-    !   allocate(tskin(nMax))
-       tskin(:)     = 0.0_kp      ! surface_skin_temperature
-   !    allocate(tskin_wat(nMax))
-       tskin_wat(:) = 0.0_kp      ! surface_skin_temperature_over_water 
-   !    allocate(tskin_lnd(nMax))
-       tskin_lnd(:) = 0.0_kp      ! surface_skin_temperature_over_land
-   !    allocate(tskin_ice(nMax))
-       tskin_ice(:) = 0.0_kp      ! surface_skin_temperature_over_ice
-    !end if
-
-    tsfc(:)      = 0.0_kp         ! surface_skin_temperature
-    tsfc_wat(:)  = 0.0_kp         ! surface_skin_temperature_over_water_interstitial
-    tsfc_lnd(:)  = 0.0_kp         ! surface_skin_temperature_over_land_interstitial
-    tsfc_ice(:)  = 0.0_kp         ! surface_skin_temperature_over_ice_interstitial
-    tsfco(:)     = ts(:)          ! sea_surface_temperature
-    tsurf_wat(:) = 0.0_kp         ! surface_skin_temperature_after_iteration_over_water
-    tsurf_lnd(:) = 0.0_kp         ! surface_skin_temperature_after_iteration_over_land
-    tsurf_ice(:) = 0.0_kp         ! surface_skin_temperature_after_iteration_over_ice
-    tisfc(:)     = 0.0_kp         ! sea_ice_temperature
-    tgice        = tice           ! freezing_point_temperature_of_seawater
-    islmsk(:)    = 0              ! sea_land_ice_mask, all sea 
-    islmsk_cice(:) = 0            ! sea_land_ice_mask_cice, all sea
-    slmsk(:)     = 0              ! area_type, all sea
-    qss(:)       = qbot(:)        ! surface_specific_humidity ? not the lowest level
-    qss_wat(:)   = qss(:)         ! surface_specific_humidity_over_water
-    qss_lnd(:)   = 0.0_kp         ! surface_specific_humidity_over_land
-    qss_ice(:)   = 0.0_kp         ! surface_specific_humidity_over_ice
-    min_lakeice  = 0.15_kp        ! min_lake_ice_area_fraction
-    min_seaice   = 1.0e-11_kp     ! min_sea_ice_area_fraction
-    kdt          = kdt+1          ! index_of_timestep
+    ustar_wat(:)  = 0.0_kp         ! surface_friction_velocity_over_water
+    ustar_lnd(:)  = 0.0_kp         ! surface_friction_velocity_over_land
+    ustar_ice(:)  = 0.0_kp         ! surface_friction_velocity_over_ice
+    weasd(:)      = 0.0_kp         ! lwe_thickness_of_surface_snow_amount
+    weasd_lnd(:)  = 0.0_kp         ! water_equivalent_accumulated_snow_depth_over_land
+    weasd_ice(:)  = 0.0_kp         ! water_equivalent_accumulated_snow_depth_over_ice
+    tskin(:)      = 0.0_kp         ! surface_skin_temperature
+    tskin_wat(:)  = 0.0_kp         ! surface_skin_temperature_over_water 
+    tskin_lnd(:)  = 0.0_kp         ! surface_skin_temperature_over_land
+    tskin_ice(:)  = 0.0_kp         ! surface_skin_temperature_over_ice
+    tsfc(:)       = 0.0_kp         ! surface_skin_temperature
+    tsfc_wat(:)   = 0.0_kp         ! surface_skin_temperature_over_water_interstitial
+    tsfc_lnd(:)   = 0.0_kp         ! surface_skin_temperature_over_land_interstitial
+    tsfc_ice(:)   = 0.0_kp         ! surface_skin_temperature_over_ice_interstitial
+    tsfco(:)      = ts(:)          ! sea_surface_temperature
+    tsurf_wat(:)  = 0.0_kp         ! surface_skin_temperature_after_iteration_over_water
+    tsurf_lnd(:)  = 0.0_kp         ! surface_skin_temperature_after_iteration_over_land
+    tsurf_ice(:)  = 0.0_kp         ! surface_skin_temperature_after_iteration_over_ice
+    tisfc(:)      = 0.0_kp         ! sea_ice_temperature
+    tgice         = tice           ! freezing_point_temperature_of_seawater
+    islmsk(:)     = 0              ! sea_land_ice_mask, all sea 
+    islmsk_cice(:) = 0             ! sea_land_ice_mask_cice, all sea
+    slmsk(:)      = 0              ! area_type, all sea
+    qss(:)        = qbot(:)        ! surface_specific_humidity ? not the lowest level
+    qss_wat(:)    = qss(:)         ! surface_specific_humidity_over_water
+    qss_lnd(:)    = 0.0_kp         ! surface_specific_humidity_over_land
+    qss_ice(:)    = 0.0_kp         ! surface_specific_humidity_over_ice
+    min_lakeice   = 0.15_kp        ! min_lake_ice_area_fraction
+    min_seaice    = 1.0e-11_kp     ! min_sea_ice_area_fraction
+    kdt           = kdt+1          ! index_of_timestep
 
     sigmaf(:)     = 0.0_kp         ! bounded_vegetation_area_fraction, no veg
     vegtype(:)    = 0              ! vegetation_type_classification
@@ -706,29 +681,32 @@ contains
     stress_lnd(:) = 0.0_kp         ! surface_wind_stress_over_land
     stress_ice(:) = 0.0_kp         ! surface_wind_stress_over_ice
 
-    !if (flag_init) then
-       !allocate(fm_wat(nMax))
-       fm(:)        = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum
-       fm_wat(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_over_water
-       !allocate(fm_lnd(nMax))
-       fm_lnd(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_over_land
-       !allocate(fm_ice(nMax))
-       fm_ice(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_over_ice
-       !allocate(fh_wat(nMax))
-       fh(:)        = 0.0_kp      ! Monin_Obukhov_similarity_function_for_heat
-       fh_wat(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_heat_over_water
-       !allocate(fh_lnd(nMax))
-       fh_lnd(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_heat_over_land
-       !allocate(fh_ice(nMax))
-       fh_ice(:)    = 0.0_kp      ! Monin_Obukhov_similarity_function_for_heat_over_ice
-       !allocate(fm10_wat(nMax))
-       fm10(:)      = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum
-       fm10_wat(:)  = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_water
-       !allocate(fm10_lnd(nMax))
-       fm10_lnd(:)  = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_land
-       !allocate(fm10_ice(nMax))
-       fm10_ice(:)  = 0.0_kp      ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_ice
-    !end if
+    if (flag_init) then
+       allocate(fm(nMax))
+       fm(:)      = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum
+    end if
+
+    fm_wat(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_over_water
+    fm_lnd(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_over_land
+    fm_ice(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_over_ice
+
+    if (flag_init) then
+       allocate(fh(nMax))
+       fh(:)      = 0.0_kp        ! Monin_Obukhov_similarity_function_for_heat
+    end if
+
+    fh_wat(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_heat_over_water
+    fh_lnd(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_heat_over_land
+    fh_ice(:)     = 0.0_kp        ! Monin_Obukhov_similarity_function_for_heat_over_ice
+
+    if (flag_init) then
+       allocate(fm10(nMax))
+       fm10(:)    = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum
+    end if
+
+    fm10_wat(:)   = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_water
+    fm10_lnd(:)   = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_land
+    fm10_ice(:)   = 0.0_kp        ! Monin_Obukhov_similarity_function_for_momentum_at_10m_over_ice
     fh2(:)       = 0.0_kp         ! Monin_Obukhov_similarity_function_for_heat
     fh2_wat(:)   = 0.0_kp         ! Monin_Obukhov_similarity_function_for_heat_at_2m_over_water
     fh2_lnd(:)   = 0.0_kp         ! Monin_Obukhov_similarity_function_for_heat_at_2m_over_land
@@ -751,33 +729,29 @@ contains
     gflx_wat(:)  = 0.0_kp         ! upward_heat_flux_in_soil_over_water
     gflx_lnd(:)  = 0.0_kp         ! upward_heat_flux_in_soil_over_lnd
     gflx_ice(:)  = 0.0_kp         ! upward_heat_flux_in_soil_over_ice
-    evap(:)      = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux
+
+    if (flag_init) then
+       !allocate(evap(nMax))
+       evap(:)   = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux
+    end if
+
     evap_wat(:)  = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux_over_water
     evap_lnd(:)  = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux_over_land
     evap_ice(:)  = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux_over_ice
-    hflx(:)      = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux
+
+    if (flag_init) then
+       allocate(hflx(nMax))
+       hflx(:)   = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux
+    end if
+
     hflx_wat(:)  = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux_over_water
     hflx_lnd(:)  = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux_over_land
     hflx_ice(:)  = 0.0_kp         ! kinematic_surface_upward_sensible_heat_flux_over_ice
+
     ep1d(:)      = 0.0_kp         ! surface_upward_potential_latent_heat_flux
     ep1d_wat(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_water
     ep1d_lnd(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_land
     ep1d_ice(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_ice
-
-    !--- generic surface call ---
-    !call GFS_surface_generic_pre_run( &
-    !     nthreads  , nMax       , levs        , &
-    !     vfrac     , islmsk     , isot        , &
-    !     ivegsrc   , stype      , vtype       , &
-    !     slope     , prsik1     , prslk1      , &
-    !     tsfc      , phil       , grav        , & ! ? phil
-    !     sigmaf    , prslki     , z1          , &
-    !                      drain_cpl, dsnow_cpl, rain_cpl, snow_cpl, lndp_type, n_var_lndp, sfc_wts,        &
-    !                      lndp_var_list, lndp_prt_list,                                                    &
-    !                      z01d, zt1d, bexp1d, xlai1d, vegf1d, lndp_vgf,                                    &
-    !                      cplflx, flag_cice, islmsk_cice, slimskin_cpl,                                    &
-    !                      wind, u1, v1, cnvwind, smcwlt2, smcref2, vtype_save, stype_save, slope_save,     &
-    !                      errmsg, errflg)
 
     !--- GFS surface scheme pre ---
     call GFS_surface_composites_pre_run( &
@@ -835,13 +809,6 @@ contains
             ztmax_wat , ztmax_lnd  , ztmax_ice   , &
             zvfun     , errmsg     , errflg)
 
-       !print*, "cm_wat    = ", iter, minval(cm_wat, mask=(mask(:) /= 0)), maxval(cm_wat, mask=(mask(:) /= 0))
-       !print*, "ch_wat    = ", iter, minval(ch_wat, mask=(mask(:) /= 0)), maxval(ch_wat, mask=(mask(:) /= 0))
-       !print*, "fm_wat    = ", iter, minval(fm_wat, mask=(mask(:) /= 0)), maxval(fm_wat, mask=(mask(:) /= 0))
-       !print*, "fm10_wat  = ", iter, minval(fm10_wat, mask=(mask(:) /= 0)), maxval(fm10_wat, mask=(mask(:) /= 0))
-       !print*, "z0rl_wat  = ", iter, minval(z0rl_wat, mask=(mask(:) /= 0)), maxval(z0rl_wat, mask=(mask(:) /= 0))
-       !print*, "tskin_wat = ", iter, minval(tskin_wat, mask=(mask(:) /= 0)), maxval(tskin_wat, mask=(mask(:) /= 0))
-
        !--- update flag_guess ---
        call GFS_surface_loop_control_part1_run( &
             nMax       , iter      , wind        , &
@@ -861,8 +828,12 @@ contains
             gflx_wat   , evap_wat  , hflx_wat    , &
             ep1d_wat   , errmsg    , errflg, 'a')
 
-       !print*, "lat = ", iter, minval(evap_wat, mask=(mask(:) /= 0)), maxval(evap_wat, mask=(mask(:) /= 0))
-       !print*, "sen = ", iter, minval(hflx_wat, mask=(mask(:) /= 0)), maxval(hflx_wat, mask=(mask(:) /= 0))
+       !--- update flag_guess and flag_iter ---
+       call GFS_surface_loop_control_part2_run( &
+            nMax       , iter      , wind        , &
+            flag_guess , flag_iter , dry         , &
+            wet        , icy       , nstf_name1  , &
+            errmsg     , errflg)
     end do
 
     !--- GFS surface scheme post ---
@@ -916,22 +887,23 @@ contains
     !--- unit conversion ---
     do n = 1, nMax
        if (mask(n) /= 0) then
-          sen(n) = hflx_wat(n)*rbot(n)*cp
-          lat(n) = evap_wat(n)*rbot(n)*hvap
-          taux(n) = qbot(n)
-          tauy(n) = rbot(n)
+          sen(n)  = hflx_wat(n)*rbot(n)*cp
+          lat(n)  = evap_wat(n)*rbot(n)*hvap
+          lwup(n) = -sbc*ts(n)**4
+          !evap(n) = lat(n)/hvap
+          taux(n) = -1.0_kp*rbot(n)*stress(n)*ubot(n)/wind(n) 
+          tauy(n) = -1.0_kp*rbot(n)*stress(n)*vbot(n)/wind(n)
        else
-          sen(n) = spval
-          lat(n) = spval
+          sen(n)  = spval
+          lat(n)  = spval
+          lwup(n) = spval
+          evap(n) = spval
           taux(n) = spval
           tauy(n) = spval
        end if
     end do
 
     flag_init = .false.
-
-    !print*, "lat = ", minval(lat, mask=(mask(:) /= 0)), maxval(lat, mask=(mask(:) /= 0))
-    !print*, "sen = ", minval(sen, mask=(mask(:) /= 0)), maxval(sen, mask=(mask(:) /= 0))
 
   end subroutine shr_flux_atmOcn_ufs
 #endif
