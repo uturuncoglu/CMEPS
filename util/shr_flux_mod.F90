@@ -826,7 +826,7 @@ contains
             use_flake  , wind      , flag_iter   , &
             qss_wat    , cmm_wat   , chh_wat     , &
             gflx_wat   , evap_wat  , hflx_wat    , &
-            ep1d_wat   , errmsg    , errflg, 'a')
+            ep1d_wat   , errmsg    , errflg)
 
        !--- update flag_guess and flag_iter ---
        call GFS_surface_loop_control_part2_run( &
