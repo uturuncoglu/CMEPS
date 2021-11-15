@@ -22,7 +22,7 @@ module med_phases_aofluxes_mod
   use ESMF                  , only : ESMF_XGRIDSIDE_B, ESMF_XGRIDSIDE_A, ESMF_END_ABORT, ESMF_LOGERR_PASSTHRU
   use ESMF                  , only : ESMF_Mesh, ESMF_MeshGet, ESMF_XGrid, ESMF_XGridCreate, ESMF_TYPEKIND_R8
   use ESMF                  , only : ESMF_LogWrite, ESMF_LOGMSG_INFO, ESMF_SUCCESS, ESMF_LOGMSG_ERROR, ESMF_FAILURE
-  use ESMF                  , only : ESMF_Finalize, ESMF_LogFoundError
+  use ESMF                  , only : ESMF_Finalize, ESMF_LogFoundError, ESMF_XGridGet
   use med_kind_mod          , only : CX=>SHR_KIND_CX, CS=>SHR_KIND_CS, CL=>SHR_KIND_CL, R8=>SHR_KIND_R8
   use med_internalstate_mod , only : InternalState, mastertask, logunit
   use med_constants_mod     , only : dbug_flag    => med_constants_dbug_flag
@@ -31,6 +31,7 @@ module med_phases_aofluxes_mod
   use esmFlds               , only : compatm, compocn, coupling_mode, mapconsd, mapconsf, mapfcopy
   use perf_mod              , only : t_startf, t_stopf
   use shr_const_mod         , only : rearth => SHR_CONST_REARTH 
+  use shr_const_mod         , only : pi => SHR_CONST_PI
 
   implicit none
   private
@@ -104,6 +105,7 @@ module med_phases_aofluxes_mod
      real(R8) , pointer :: psfc        (:) => null() ! atm surface pressure
      real(R8) , pointer :: dens        (:) => null() ! atm bottom density
      real(R8) , pointer :: tbot        (:) => null() ! atm bottom surface T
+     real(R8) , pointer :: lwdn        (:) => null() ! atm downward longwave heat flux
      real(R8) , pointer :: shum_16O    (:) => null() ! atm H2O tracer
      real(R8) , pointer :: shum_HDO    (:) => null() ! atm HDO tracer
      real(R8) , pointer :: shum_18O    (:) => null() ! atm H218O tracer
@@ -112,6 +114,8 @@ module med_phases_aofluxes_mod
      integer            :: lsize                     ! local size
      integer  , pointer :: mask        (:) => null() ! integer ocn domain mask: 0 <=> inactive cell
      real(R8) , pointer :: rmask       (:) => null() ! real    ocn domain mask: 0 <=> inactive cell
+     real(R8) , pointer :: xlat        (:) => null() ! latitude
+     real(R8) , pointer :: xlon        (:) => null() ! longitude
   end type aoflux_in_type
 
   type aoflux_out_type
@@ -493,6 +497,14 @@ contains
     call ESMF_LogWrite(trim(subname)//" : maskB= "//trim(tmpstr), ESMF_LOGMSG_INFO)
 
     ! ------------------------
+    ! set aoflux lat, lon coordinates, in radians
+    ! ------------------------
+    allocate(aoflux_in%xlon(lsize))
+    allocate(aoflux_in%xlat(lsize))
+    aoflux_in%xlon(:) = is_local%wrap%mesh_info(compocn)%lons(:)*pi/180.0_r8
+    aoflux_in%xlat(:) = is_local%wrap%mesh_info(compocn)%lats(:)*pi/180.0_r8
+
+    ! ------------------------
     ! create packed mapping from ocn->atm if aoflux_grid is ocn
     ! ------------------------
     if (is_local%wrap%aoflux_grid == 'ogrid') then
@@ -619,6 +631,14 @@ contains
     enddo
 
     ! ------------------------
+    ! set aoflux lat, lon coordinates, in radians
+    ! ------------------------
+    allocate(aoflux_in%xlon(lsize))
+    allocate(aoflux_in%xlat(lsize))
+    aoflux_in%xlon(:) = is_local%wrap%mesh_info(compatm)%lons(:)*pi/180.0_r8
+    aoflux_in%xlat(:) = is_local%wrap%mesh_info(compatm)%lats(:)*pi/180.0_r8
+
+    ! ------------------------
     ! set one normalization for ocn-atm mapping if needed
     ! ------------------------
 
@@ -683,6 +703,9 @@ contains
     type(ESMF_Mesh)      :: mesh_src   ! needed for normalization
     type(ESMF_Mesh)      :: mesh_dst   ! needed for normalization
     real(r8), pointer    :: dataptr1d(:)
+    real(r8), allocatable:: ownedElemCoords(:)
+    type(ESMF_Mesh)      :: xmesh
+    integer              :: spatialDim
     integer              :: fieldcount
     character(ESMF_MAXSTR),allocatable :: fieldNameList(:)
     character(len=*),parameter :: subname=' (med_aofluxes_init_xgrid) '
@@ -789,6 +812,26 @@ contains
 
     allocate(aoflux_in%mask(lsize))
     aoflux_in%mask(:) = 1
+
+    ! ------------------------
+    ! set aoflux lat, lon coordinates, in radians
+    ! ------------------------
+    allocate(aoflux_in%xlon(lsize))
+    allocate(aoflux_in%xlat(lsize))
+    call ESMF_XGridGet(xgrid, mesh=xmesh, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    call ESMF_MeshGet(xmesh, spatialDim=spatialDim, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    allocate(ownedElemCoords(spatialDim*lsize))
+    call ESMF_MeshGet(xmesh, ownedElemCoords=ownedElemCoords, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    do n = 1, lsize
+       aoflux_in%xlon(n) = ownedElemCoords(2*n-1)
+       aoflux_in%xlon(n) = ownedElemCoords(2*n)
+    end do
+    aoflux_in%xlon(:) = aoflux_in%xlon(:)*pi/180.0_r8
+    aoflux_in%xlat(:) = aoflux_in%xlat(:)*pi/180.0_r8
+    deallocate(ownedElemCoords)
 
     ! ------------------------
     ! determine one normalization field for ocn->xgrid
@@ -1049,10 +1092,11 @@ contains
  
 #ifdef UFS_AOFLUX
     call shr_flux_atmocn_ufs(&
-         nMax=aoflux_in%lsize, psfc=aoflux_in%psfc, pbot=aoflux_in%pbot, tbot=aoflux_in%tbot, qbot=aoflux_in%shum, &
+         nMax=aoflux_in%lsize, xlon=aoflux_in%xlon, xlat=aoflux_in%xlat, psfc=aoflux_in%psfc, &
+         pbot=aoflux_in%pbot, tbot=aoflux_in%tbot, qbot=aoflux_in%shum, lwdn=aoflux_in%lwdn, &
          zbot=aoflux_in%zbot, garea=aoflux_in%garea, ubot=aoflux_in%ubot, usfc=aoflux_in%usfc, vbot=aoflux_in%vbot, &
          vsfc=aoflux_in%vsfc, rbot=aoflux_in%dens, ts=aoflux_in%tocn, mask=aoflux_in%mask, &
-         sen=aoflux_out%sen, lat=aoflux_out%lat, lwup=aoflux_out%lwup, evap=aoflux_out%evap, &
+         sen=aoflux_out%sen, lat=aoflux_out%lat, lwup=aoflux_out%lwup, evp=aoflux_out%evap, &
          taux=aoflux_out%taux, tauy=aoflux_out%tauy, &
          missval=0.0_r8)
 #else 
@@ -1206,6 +1250,8 @@ contains
        call fldbun_getfldptr(fldbun_a, 'Sa_u10m', aoflux_in%usfc, xgrid=xgrid, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
        call fldbun_getfldptr(fldbun_a, 'Sa_v10m', aoflux_in%vsfc, xgrid=xgrid, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
+       call fldbun_getfldptr(fldbun_a, 'Faxa_lwdn', aoflux_in%lwdn, xgrid=xgrid, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
     end if
 

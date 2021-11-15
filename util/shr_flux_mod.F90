@@ -57,7 +57,7 @@ module shr_flux_mod
   real(kp), allocatable, dimension(:) :: z0rl        , z0rl_wav  ,            &
                                          z0rl_wat    , z0rl_lnd  , z0rl_ice , &
                                          ustar       , fm        , fh       , &
-                                         fm10        , hflx      !, evap 
+                                         fm10        , hflx      , evap 
   
 #endif
 
@@ -413,9 +413,9 @@ contains
 
 #ifdef UFS_AOFLUX
   !===============================================================================
-  subroutine shr_flux_atmOcn_ufs(nMax, mask, psfc, pbot, tbot, qbot, zbot, &
-             garea, ubot, usfc, vbot, vsfc, rbot, ts, sen, lat, lwup, evap, &
-             taux, tauy, missval)
+  subroutine shr_flux_atmOcn_ufs(nMax, xlon, xlat, mask, psfc, pbot, tbot, &
+             qbot, zbot, garea, ubot, usfc, vbot, vsfc, rbot, ts, lwdn, sen, lat, &
+             lwup, evp, taux, tauy, missval)
 
     !-----------------------------------------------------------------------
     ! Atmosphere-ocean flux calculation for UFS
@@ -441,11 +441,16 @@ contains
     use GFS_surface_composites_post, only: GFS_surface_composites_post_run
     use GFS_surface_loop_control_part1, only: GFS_surface_loop_control_part1_run
     use GFS_surface_loop_control_part2, only: GFS_surface_loop_control_part2_run
+    !use GFS_radiation_surface, only: GFS_radiation_surface_run
+    use module_radiation_surface, only: setemis
+    !use dcyc2t3, only: dcyc2t3_run
 
     implicit none
 
     !--- input arguments --------------------------------
     integer(IN), intent(in)  :: nMax        ! data vector length
+    real(R8)   , intent(in)  :: xlon(nMax)  ! longitude 
+    real(R8)   , intent(in)  :: xlat(nMax)  ! latitude
     integer(IN), intent(in)  :: mask (nMax) ! ocn domain mask
     real(R8)   , intent(in)  :: psfc(nMax)  ! atm P (surface)                (Pa)
     real(R8)   , intent(in)  :: pbot(nMax)  ! atm P (bottom)                 (Pa)
@@ -458,6 +463,7 @@ contains
     real(R8)   , intent(in)  :: vbot(nMax)  ! atm v wind (bottom)            (m/s)    
     real(R8)   , intent(in)  :: vsfc(nMax)  ! atm v wind (surface)           (m/s)    
     real(R8)   , intent(in)  :: rbot(nMax)  ! atm density                    (kg/m^3)    
+    real(R8)   , intent(in)  :: lwdn(nMax)  ! atm lw downward                (W/m^2)
     real(R8)   , intent(in)  :: ts(nMax)    ! ocn surface temperature        (K)
     real(R8)   , intent(in), optional :: missval ! masked value
 
@@ -465,7 +471,7 @@ contains
     real(R8)   , intent(out) :: sen(nMax)   ! heat flux: sensible            (W/m^2)
     real(R8)   , intent(out) :: lat(nMax)   ! heat flux: latent              (W/m^2)
     real(R8)   , intent(out) :: lwup(nMax)  ! heat flux: lw upward           (W/m^2)
-    real(R8)   , intent(out) :: evap(nMax)  ! heat flux: evap                ((kg/s)/m^2)
+    real(R8)   , intent(out) :: evp(nMax)   ! heat flux: evap                ((kg/s)/m^2)
     real(R8)   , intent(out) :: taux(nMax)  ! surface stress, zonal          (N)
     real(R8)   , intent(out) :: tauy(nMax)  ! surface stress, maridional     (N)
 
@@ -473,7 +479,8 @@ contains
     integer                     :: n           , iter      , ivegsrc   , &
                                    sfc_z0_type , errflg    , nstf_name1, &
                                    lkm         , nthreads  , kice      , &
-                                   km 
+                                   km          , lsm       , lsm_noahmp, &
+                                   lsm_ruc
     real(kp)                    :: spval       , cpinv     , hvapi     , &
                                    elocp       , rch       , tem       , &
                                    min_lakeice , min_seaice, tgice     , &
@@ -523,7 +530,11 @@ contains
                                    evap_wat    , evap_lnd  , evap_ice  , &
                                    hflx_wat    , hflx_lnd  , hflx_ice  , &
                                    tsfc        ,                         &
-                                   tsfc_wat    , tsfc_lnd  , tsfc_ice
+                                   tsfc_wat    , tsfc_lnd  , tsfc_ice  , &
+                                   sncovr      , sncovr_ice, tsfg      , & 
+                                   hprif       , icefrac   ,             &
+                                   semis       , semisbase ,             &
+                                   semis_wat   , semis_lnd , semis_ice
     real(kp), dimension(nMax,1) :: tiice       , stc
     logical, dimension(nMax)    :: flag_iter   , flag_guess, use_flake , &
                                    wet         , dry       , icy       , &
@@ -569,7 +580,7 @@ contains
     hffac(:)      = 0.0_kp         ! surface_upward_sensible_heat_flux_reduction_factor
     stc(:,:)      = 0.0_kp         ! soil_temperature
 
-    flag_restart  = .false.        ! flag_for_restart, restart run
+    flag_restart  = .true.         ! flag_for_restart, restart run
     lkm           = 0              ! control_for_lake_surface_scheme
     frac_grid     = .true.         ! flag_for_fractional_landmask
     flag_cice(:)  = .true.         ! flag_for_cice
@@ -731,7 +742,7 @@ contains
     gflx_ice(:)  = 0.0_kp         ! upward_heat_flux_in_soil_over_ice
 
     if (flag_init) then
-       !allocate(evap(nMax))
+       allocate(evap(nMax))
        evap(:)   = 0.0_kp         ! kinematic_surface_upward_latent_heat_flux
     end if
 
@@ -752,6 +763,33 @@ contains
     ep1d_wat(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_water
     ep1d_lnd(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_land
     ep1d_ice(:)  = 0.0_kp         ! surface_upward_potential_latent_heat_flux_over_ice
+
+    lsm          = 2              ! control_for_land_surface_scheme 
+    lsm_noahmp   = 2              ! identifier_for_noahmp_land_surface_scheme
+    lsm_ruc      = 3              ! identifier_for_ruc_land_surface_scheme
+    sncovr(:)    = 0.0_kp         ! surface_snow_area_fraction_over_land
+    sncovr_ice(:)= 0.0_kp         ! surface_snow_area_fraction_over_ice
+    tsfg(:)      = 273.15_kp      ! surface_ground_temperature_for_radiation
+    hprif(:)     = 0.0_kp         ! standard_deviation_of_subgrid_orography
+    semis_lnd(:) = 0.0_kp         ! surface_longwave_emissivity_over_land 
+    semis_ice(:) = 0.0_kp         ! surface_longwave_emissivity_over_ice
+    semis_wat(:) = 0.0_kp         ! surface_longwave_emissivity_over_water
+    icefrac(:)   = 0.0_kp         ! ice_fraction
+    semis(:)     = 0.0_kp         ! surface_longwave_emissivity
+    semisbase(:) = 0.0_kp         ! baseline_surface_longwave_emissivity
+
+    !--- set up surface emissivity for lw radiation ---
+    call setemis( &
+         lsm       , lsm_noahmp , lsm_ruc     , &
+         frac_grid , cplice     , use_flake   , &
+         lakefrac  , xlon       , xlat        , &
+         slmsk     , snowd_lnd  , snowd_ice   , &
+         sncovr    , sncovr_ice , z0rl        , &
+         tsfg      , tbot       , hprif       , &
+         semis_lnd , semis_ice  , semis_wat   , &
+         nMax      , landfrac   , oceanfrac   , &
+         icefrac   , icy        , semisbase   , &
+         semis) 
 
     !--- GFS surface scheme pre ---
     call GFS_surface_composites_pre_run( &
@@ -889,8 +927,9 @@ contains
        if (mask(n) /= 0) then
           sen(n)  = hflx_wat(n)*rbot(n)*cp
           lat(n)  = evap_wat(n)*rbot(n)*hvap
-          lwup(n) = -sbc*ts(n)**4
-          !evap(n) = lat(n)/hvap
+          !lwup(n) = -sbc*ts(n)**4
+          lwup(n) = semis_wat(n)*sbc*ts(n)**4+(1.0_r8-semis_wat(n))*lwdn(n)
+          evp(n)  = lat(n)/hvap
           taux(n) = -1.0_kp*rbot(n)*stress(n)*ubot(n)/wind(n) 
           tauy(n) = -1.0_kp*rbot(n)*stress(n)*vbot(n)/wind(n)
        else
