@@ -531,9 +531,7 @@ contains
                                    hflx_wat    , hflx_lnd  , hflx_ice  , &
                                    tsfc        ,                         &
                                    tsfc_wat    , tsfc_lnd  , tsfc_ice  , &
-                                   sncovr      , sncovr_ice, tsfg      , & 
-                                   hprif       , icefrac   ,             &
-                                   semis       , semisbase ,             &
+                                   semis_rad   , emis_lnd  , emis_ice  , &
                                    semis_wat   , semis_lnd , semis_ice
     real(kp), dimension(nMax,1) :: tiice       , stc
     logical, dimension(nMax)    :: flag_iter   , flag_guess, use_flake , &
@@ -767,34 +765,22 @@ contains
     lsm          = 2              ! control_for_land_surface_scheme 
     lsm_noahmp   = 2              ! identifier_for_noahmp_land_surface_scheme
     lsm_ruc      = 3              ! identifier_for_ruc_land_surface_scheme
-    sncovr(:)    = 0.0_kp         ! surface_snow_area_fraction_over_land
-    sncovr_ice(:)= 0.0_kp         ! surface_snow_area_fraction_over_ice
-    tsfg(:)      = 273.15_kp      ! surface_ground_temperature_for_radiation
-    hprif(:)     = 0.0_kp         ! standard_deviation_of_subgrid_orography
-    semis_lnd(:) = 0.0_kp         ! surface_longwave_emissivity_over_land 
-    semis_ice(:) = 0.0_kp         ! surface_longwave_emissivity_over_ice
-    semis_wat(:) = 0.0_kp         ! surface_longwave_emissivity_over_water
-    icefrac(:)   = 0.0_kp         ! ice_fraction
-    semis(:)     = 0.0_kp         ! surface_longwave_emissivity
-    semisbase(:) = 0.0_kp         ! baseline_surface_longwave_emissivity
+    semis_rad(:) = 0.0_kp         ! surface_longwave_emissivity
+    semis_lnd(:) = 0.0_kp         ! surface_longwave_emissivity_over_land_interstitial
+    semis_ice(:) = 0.0_kp         ! surface_longwave_emissivity_over_ice_interstitial
+    semis_wat(:) = 0.0_kp         ! surface_longwave_emissivity_over_water_interstitial
+    emis_lnd(:)  = 0.0_kp         ! surface_longwave_emissivity_over_land
+    emis_ice(:)  = 0.0_kp         ! surface_longwave_emissivity_over_ice
 
     !--- set up surface emissivity for lw radiation ---
-    call setemis( &
-         lsm       , lsm_noahmp , lsm_ruc     , &
-         frac_grid , cplice     , use_flake   , &
-         lakefrac  , xlon       , xlat        , &
-         slmsk     , snowd_lnd  , snowd_ice   , &
-         sncovr    , sncovr_ice , z0rl        , &
-         tsfg      , tbot       , hprif       , &
-         semis_lnd , semis_ice  , semis_wat   , &
-         nMax      , landfrac   , oceanfrac   , &
-         icefrac   , icy        , semisbase   , &
-         semis) 
+    !--- semis_wat is constant and set to 0.97 in setemis() call --- 
+    semis_wat(:) = 0.97
 
     !--- GFS surface scheme pre ---
     call GFS_surface_composites_pre_run( &
          nMax      , flag_init  , flag_restart, &
-         lkm       , frac_grid  , flag_cice   , &
+         lkm       , lsm        , lsm_noahmp  , &
+         lsm_ruc   , frac_grid  , flag_cice   , &
          cplflx    , cplice     , cplwav2atm  , &
          landfrac  , lakefrac   , lakedepth   , &
          oceanfrac , frland     , dry         , &
@@ -804,18 +790,19 @@ contains
          snowd     , snowd_lnd  , snowd_ice   , &
          tprcp     ,                            &
          tprcp_wat , tprcp_lnd  , tprcp_ice   , &
-         ustar     , ustar_wat  , ustar_lnd   , &
-         ustar_ice ,                            &
+         ustar     ,                            &
+         ustar_wat , ustar_lnd  , ustar_ice   , &
          weasd     , weasd_lnd  , weasd_ice   , &
          ep1d_ice  , tskin      , tsfco       , &
          tskin_lnd , tskin_wat  , tskin_ice   , &
-         tsurf_wat , tsurf_lnd  , tsurf_ice   , &
-         gflx_ice  , tgice      ,               &
+         tisfc     , tsurf_wat  , tsurf_lnd   , &
+         tsurf_ice , gflx_ice   , tgice       , &
          islmsk    , islmsk_cice, slmsk       , &
+         semis_rad , semis_wat  , semis_lnd   , &
+         semis_ice , emis_lnd   , emis_ice    , &
          qss       , qss_wat    , qss_lnd     , &
          qss_ice   , min_lakeice, min_seaice  , &
-         kdt       , huge       , errmsg      , &
-         errflg)
+         kdt       , errmsg     , errflg)
 
     !--- surface iteration loop ---
     do iter = 1, 2
@@ -910,16 +897,16 @@ contains
          evap_lnd  , evap_ice   , hflx        , &
          hflx_wat  , hflx_lnd   , hflx_ice    , &
          qss       , qss_wat    , qss_lnd     , &
-         qss_ice   , tsfc       , tsfco       , &
-         tsfcl     , tsfc_wat   ,               &
-         tisfc     ,                            &
-         hice      , cice       ,               & 
+         qss_ice   , tskin      , tsfco       , &
+         tskin_lnd , tskin_wat  , tskin_ice   , &
+         tisfc     , hice       , cice        , & 
+         min_seaice,                            &
          tiice     , sigmaf     , zvfun       , &
          lheatstrg , h0facu     , h0facs      , &
          hflxq     , hffac      , stc         , &
          grav      , prsik1     , prslk1      , &
          prslki    , zbot       , ztmax_wat   , &
-         ztmax_lnd , ztmax_ice  , huge        , &
+         ztmax_lnd , ztmax_ice  ,               &
          errmsg    , errflg)
 
     !--- unit conversion ---
