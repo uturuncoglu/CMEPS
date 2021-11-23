@@ -441,9 +441,6 @@ contains
     use GFS_surface_composites_post, only: GFS_surface_composites_post_run
     use GFS_surface_loop_control_part1, only: GFS_surface_loop_control_part1_run
     use GFS_surface_loop_control_part2, only: GFS_surface_loop_control_part2_run
-    !use GFS_radiation_surface, only: GFS_radiation_surface_run
-    use module_radiation_surface, only: setemis
-    !use dcyc2t3, only: dcyc2t3_run
 
     implicit none
 
@@ -914,7 +911,6 @@ contains
        if (mask(n) /= 0) then
           sen(n)  = hflx_wat(n)*rbot(n)*cp
           lat(n)  = evap_wat(n)*rbot(n)*hvap
-          !lwup(n) = -sbc*ts(n)**4
           lwup(n) = semis_wat(n)*sbc*ts(n)**4+(1.0_r8-semis_wat(n))*lwdn(n)
           evp(n)  = lat(n)/hvap
           taux(n) = -1.0_kp*rbot(n)*stress(n)*ubot(n)/wind(n) 
