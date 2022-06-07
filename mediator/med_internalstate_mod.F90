@@ -58,9 +58,6 @@ module med_internalstate_mod
   ! Default src and destination masks for mapping
   integer, public, allocatable :: defaultMasks(:,:)
 
-  ! Default src and destination masks for mapping
-  integer, public, allocatable :: defaultMasks(:,:)
-
   ! Mapping
   integer , public, parameter :: mapunset          = 0
   integer , public, parameter :: mapbilnr          = 1
