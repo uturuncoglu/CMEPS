@@ -754,13 +754,13 @@ contains
 
     ! to lnd - states and fluxes from atm
     if ( trim(coupling_mode) == 'nems_orig_data') then
-       allocate(flds(21))
+       allocate(flds(22))
        flds = (/'Sa_z      ', 'Sa_topo   ', 'Sa_tbot   ', 'Sa_pbot   ', &
                 'Sa_shum   ', 'Sa_u      ', 'Sa_v      ', 'Faxa_lwdn ', &
                 'Sa_ptem   ', 'Sa_dens   ', 'Faxa_swdn ', 'Sa_pslv   ', &
                 'Faxa_snowc', 'Faxa_snowl', 'Faxa_rainc', 'Faxa_rainl', &
                 'Faxa_swndr', 'Faxa_swndf', 'Faxa_swvdr', 'Faxa_swvdf', &
-                'Faxa_swnet'/)
+                'Faxa_swnet', 'Faxa_rain '/)
     else
        allocate(flds(18))
        flds = (/'Sa_z      ', 'Sa_ta     ', 'Sa_pslv   ', 'Sa_qa     ', &
