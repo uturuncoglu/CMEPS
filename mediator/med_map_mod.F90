@@ -401,7 +401,7 @@ contains
       endif
     end if
     if (trim(coupling_mode(1:4)) == 'nems') then
-       if (n1 == compatm .and. n2 == complnd) then
+       if ((n1 == compatm .and. n2 == complnd) .or. (n1 == complnd .and. n2 == compatm)) then
           srcMaskValue = ispval_mask
           dstMaskValue = ispval_mask
        end if
@@ -1037,6 +1037,7 @@ contains
                   trim(packed_data(mapindex)%mapnorm) /= 'none') then
 
                 ! Normalized mapping - assume that  each packed field has only one normalization type
+                call ESMF_LogWrite(trim(subname)//": FB get "//trim(packed_data(mapindex)%mapnorm), ESMF_LOGMSG_INFO)
                 call ESMF_FieldBundleGet(FBFracSrc, packed_data(mapindex)%mapnorm, field=field_fracsrc, rc=rc)
                 if (chkerr(rc,__LINE__,u_FILE_u)) return
                 call med_map_field_normalized(&

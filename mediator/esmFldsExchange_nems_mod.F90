@@ -254,18 +254,46 @@ contains
        end if
     end if
 
-    ! to atm: unmerged surface temperatures from lnd
-    if (phase == 'advertise') then
-       if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
-          call addfld(fldListFr(complnd)%flds, 'Sl_t')
-          call addfld(fldListTo(compatm)%flds, 'Sl_t')
+    ! to atm: unmerged flux components from lnd
+    if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
+       allocate(flds(3))
+       flds = (/ 'lat ', 'sen ', 'evap' /)
+       if (phase == 'advertise') then
+          do n = 1,size(flds)
+             call addfld(fldListFr(complnd)%flds, 'Fall_'//trim(flds(n)))
+             call addfld(fldListTo(compatm)%flds, 'Fall_'//trim(flds(n)))
+          end do
+       else
+          do n = 1,size(flds)
+             if ( fldchk(is_local%wrap%FBexp(compatm)        , 'Fall_'//trim(flds(n)), rc=rc) .and. &
+                  fldchk(is_local%wrap%FBImp(complnd,complnd), 'Fall_'//trim(flds(n)), rc=rc)) then
+                call addmap(fldListFr(complnd)%flds, 'Fall_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
+                call addmrg(fldListTo(compatm)%flds, 'Fall_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Fall_'//trim(flds(n)), mrg_type='copy')
+             end if
+          end do
        end if
-    else
-       if ( fldchk(is_local%wrap%FBexp(compatm)        , 'Sl_t', rc=rc) .and. &
-            fldchk(is_local%wrap%FBImp(complnd,complnd), 'Sl_t', rc=rc)) then
-          call addmap(fldListFr(complnd)%flds, 'Sl_t', compatm, maptype, 'lfrin', 'unset')
-          call addmrg(fldListTo(compatm)%flds, 'Sl_t', mrg_from=complnd, mrg_fld='Sl_t', mrg_type='copy')
+       deallocate(flds)
+    end if
+
+    ! to atm: unmerged state variables from lnd
+    if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
+       allocate(flds(3))
+       flds = (/ 'sfrac', 'tref ', 'qref ', 'q    ' /)
+       if (phase == 'advertise') then
+          do n = 1,size(flds)
+             call addfld(fldListFr(complnd)%flds, 'Sl_'//trim(flds(n)))
+             call addfld(fldListTo(compatm)%flds, 'Sl_'//trim(flds(n)))
+          end do
+       else
+          do n = 1,size(flds)
+             if ( fldchk(is_local%wrap%FBexp(compatm)        , 'Sl_'//trim(flds(n)), rc=rc) .and. &
+                  fldchk(is_local%wrap%FBImp(complnd,complnd), 'Sl_'//trim(flds(n)), rc=rc)) then
+                call addmap(fldListFr(complnd)%flds, 'Sl_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
+                call addmrg(fldListTo(compatm)%flds, 'Sl_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Sl_'//trim(flds(n)), mrg_type='copy')
+             end if
+          end do
        end if
+       deallocate(flds)
     end if
 
     ! to atm: unmerged from mediator, merge will be done under FV3/CCPP composite step
