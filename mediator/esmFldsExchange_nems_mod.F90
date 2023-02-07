@@ -257,7 +257,7 @@ contains
     ! to atm: unmerged flux components from lnd
     if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
        allocate(flds(3))
-       flds = (/ 'lat ', 'sen ', 'evap' /)
+       flds = (/ 'lat ', 'sen ', 'evap', 'gflx' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
              call addfld(fldListFr(complnd)%flds, 'Fall_'//trim(flds(n)))
@@ -782,13 +782,11 @@ contains
 
     ! to lnd - states and fluxes from atm
     if ( trim(coupling_mode) == 'nems_orig_data') then
-       allocate(flds(22))
+       allocate(flds(16))
        flds = (/'Sa_z      ', 'Sa_topo   ', 'Sa_tbot   ', 'Sa_pbot   ', &
-                'Sa_shum   ', 'Sa_u      ', 'Sa_v      ', 'Faxa_lwdn ', &
-                'Sa_ptem   ', 'Sa_dens   ', 'Faxa_swdn ', 'Sa_pslv   ', &
-                'Faxa_snowc', 'Faxa_snowl', 'Faxa_rainc', 'Faxa_rainl', &
-                'Faxa_swndr', 'Faxa_swndf', 'Faxa_swvdr', 'Faxa_swvdf', &
-                'Faxa_swnet', 'Faxa_rain '/)
+                'Sa_shum   ', 'Sa_u      ', 'Sa_v      ', 'Sa_pslv   ', &
+                'Faxa_lwdn ', 'Faxa_swdn ', 'Faxa_snowc', 'Faxa_snowl', &
+                'Faxa_rainc', 'Faxa_rainl', 'Faxa_rain ', 'Faxa_swnet'/)
     else
        allocate(flds(18))
        flds = (/'Sa_z      ', 'Sa_ta     ', 'Sa_pslv   ', 'Sa_qa     ', &
