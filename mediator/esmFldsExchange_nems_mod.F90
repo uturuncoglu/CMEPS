@@ -260,15 +260,15 @@ contains
        flds = (/ 'lat ', 'sen ', 'evap', 'gflx' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
-             call addfld(fldListFr(complnd)%flds, 'Fall_'//trim(flds(n)))
-             call addfld(fldListTo(compatm)%flds, 'Fall_'//trim(flds(n)))
+             call addfld_from(complnd, 'Fall_'//trim(flds(n)))
+             call addfld_to(compatm, 'Fall_'//trim(flds(n)))
           end do
        else
           do n = 1,size(flds)
              if ( fldchk(is_local%wrap%FBexp(compatm)        , 'Fall_'//trim(flds(n)), rc=rc) .and. &
                   fldchk(is_local%wrap%FBImp(complnd,complnd), 'Fall_'//trim(flds(n)), rc=rc)) then
-                call addmap(fldListFr(complnd)%flds, 'Fall_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
-                call addmrg(fldListTo(compatm)%flds, 'Fall_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Fall_'//trim(flds(n)), mrg_type='copy')
+                call addmap_from(complnd, 'Fall_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
+                call addmrg_to(compatm, 'Fall_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Fall_'//trim(flds(n)), mrg_type='copy')
              end if
           end do
        end if
@@ -281,15 +281,15 @@ contains
        flds = (/ 'sfrac', 'tref ', 'qref ', 'q    ' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
-             call addfld(fldListFr(complnd)%flds, 'Sl_'//trim(flds(n)))
-             call addfld(fldListTo(compatm)%flds, 'Sl_'//trim(flds(n)))
+             call addfld_from(complnd, 'Sl_'//trim(flds(n)))
+             call addfld_to(compatm, 'Sl_'//trim(flds(n)))
           end do
        else
           do n = 1,size(flds)
              if ( fldchk(is_local%wrap%FBexp(compatm)        , 'Sl_'//trim(flds(n)), rc=rc) .and. &
                   fldchk(is_local%wrap%FBImp(complnd,complnd), 'Sl_'//trim(flds(n)), rc=rc)) then
-                call addmap(fldListFr(complnd)%flds, 'Sl_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
-                call addmrg(fldListTo(compatm)%flds, 'Sl_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Sl_'//trim(flds(n)), mrg_type='copy')
+                call addmap_from(complnd, 'Sl_'//trim(flds(n)), compatm, maptype, 'lfrac', 'unset')
+                call addmrg_to(compatm, 'Sl_'//trim(flds(n)), mrg_from=complnd, mrg_fld='Sl_'//trim(flds(n)), mrg_type='copy')
              end if
           end do
        end if
