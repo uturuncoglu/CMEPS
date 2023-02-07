@@ -2,7 +2,6 @@ module driver_pio_mod
   use pio
   use shr_pio_mod,  only : io_compname, pio_comp_settings, iosystems, io_compid, shr_pio_getindex
   use shr_kind_mod, only : CS=>shr_kind_CS, shr_kind_cl, shr_kind_in
-  use shr_file_mod, only : shr_file_getunit, shr_file_freeunit
   use shr_log_mod,  only : shr_log_unit
   use shr_mpi_mod,  only : shr_mpi_bcast, shr_mpi_chkerr
   use shr_sys_mod,  only : shr_sys_abort
@@ -28,7 +27,7 @@ module driver_pio_mod
   logical, allocatable :: pio_async_interface(:)
 
   integer :: total_comps
-  logical :: mastertask
+  logical :: maintask
 #define DEBUGI 1
 
 #ifdef DEBUGI
@@ -73,7 +72,7 @@ contains
 
     call ESMF_VMGet(vm, localPet=localPet, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
-    mastertask = (localPet == 0)
+    maintask = (localPet == 0)
 
     call NUOPC_CompAttributeGet(driver, name="pio_buffer_size_limit", value=cname, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
@@ -81,7 +80,7 @@ contains
 
     ! 0 is a valid value of pio_buffer_size_limit
     if(pio_buffer_size_limit>=0) then
-       if(mastertask) write(shr_log_unit,*) 'Setting pio_buffer_size_limit : ',pio_buffer_size_limit
+       if(maintask) write(shr_log_unit,*) 'Setting pio_buffer_size_limit : ',pio_buffer_size_limit
        call pio_set_buffer_size_limit(pio_buffer_size_limit)
     endif
 
@@ -90,7 +89,7 @@ contains
     read(cname, *) pio_blocksize
     
     if(pio_blocksize>0) then
-       if(mastertask) write(shr_log_unit,*) 'Setting pio_blocksize : ',pio_blocksize
+       if(maintask) write(shr_log_unit,*) 'Setting pio_blocksize : ',pio_blocksize
        call pio_set_blocksize(pio_blocksize)
     endif
 
@@ -99,7 +98,7 @@ contains
     read(cname, *) pio_debug_level
 
     if(pio_debug_level > 0) then
-       if(mastertask) write(shr_log_unit,*) 'Setting pio_debug_level : ',pio_debug_level
+       if(maintask) write(shr_log_unit,*) 'Setting pio_debug_level : ',pio_debug_level
        ret = pio_set_log_level(pio_debug_level)
     endif
        
@@ -146,7 +145,7 @@ contains
     if (chkerr(rc,__LINE__,u_FILE_u)) return
     read(cname, *) pio_rearr_opts%comm_fc_opts_io2comp%max_pend_req
 
-    if(mastertask) then
+    if(maintask) then
        ! Log the rearranger options
        write(shr_log_unit, *) "PIO rearranger options:"
        write(shr_log_unit, *) "  comm type     = ", pio_rearr_opts%comm_type, " (",trim(pio_rearr_comm_type),")"
@@ -212,86 +211,89 @@ contains
        if (ESMF_GridCompIsPetLocal(gcomp(i), rc=rc)) then
           call ESMF_GridCompGet(gcomp(i), vm=vm, name=cval, rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
+          
           io_compname(i) = trim(cval)
-
+          
           call NUOPC_CompAttributeAdd(gcomp(i), attrList=(/'MCTID'/), rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
-
+          
           write(cval, *) io_compid(i)
           call NUOPC_CompAttributeSet(gcomp(i), name="MCTID", value=trim(cval), rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
 
-          call ESMF_VMGet(vm, mpiCommunicator=comp_comm, localPet=comp_rank, petCount=npets, &
-               ssiLocalPetCount=default_stride, rc=rc)
+          call ESMF_VMGet(vm, mpiCommunicator=comp_comm, rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
-          
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_stride", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          read(cval, *) pio_comp_settings(i)%pio_stride
-          if(pio_comp_settings(i)%pio_stride <= 0 .or. pio_comp_settings(i)%pio_stride > npets) then
-             pio_comp_settings(i)%pio_stride = min(npets, default_stride)
-          endif
-          
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_rearranger", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          read(cval, *) pio_comp_settings(i)%pio_rearranger
-          
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_numiotasks", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          read(cval, *) pio_comp_settings(i)%pio_numiotasks
-          
-          if(pio_comp_settings(i)%pio_numiotasks < 0 .or. pio_comp_settings(i)%pio_numiotasks > npets) then
-             pio_comp_settings(i)%pio_numiotasks = max(1,npets/pio_comp_settings(i)%pio_stride)
-          endif
 
-
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_root", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          read(cval, *) pio_comp_settings(i)%pio_root
+          if(comp_comm .ne. MPI_COMM_NULL) then
+             call ESMF_VMGet(vm, petCount=npets, localPet=comp_rank, ssiLocalPetCount=default_stride, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
           
-          if(pio_comp_settings(i)%pio_root < 0 .or. pio_comp_settings(i)%pio_root > npets) then
-             pio_comp_settings(i)%pio_root = 0
-          endif
-          
-          
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_typename", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          
-          select case (trim(cval))
-          case ('pnetcdf')
-             pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_PNETCDF
-          case ('netcdf')
-             pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF
-          case ('netcdf4p')
-             pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF4P
-          case ('netcdf4c')
-             pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF4C
-          case DEFAULT
-             write (msgstr, *) "Invalid PIO_TYPENAME Setting for component ", trim(cval)
-             call ESMF_LogSetError(ESMF_RC_NOT_VALID, msg=msgstr, line=__LINE__, file=__FILE__, rcToReturn=rc)
-             return
-          end select
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_stride", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             read(cval, *) pio_comp_settings(i)%pio_stride
+             if(pio_comp_settings(i)%pio_stride <= 0 .or. pio_comp_settings(i)%pio_stride > npets) then
+                pio_comp_settings(i)%pio_stride = min(npets, default_stride)
+             endif
              
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_async_interface", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          pio_async_interface(i) = (trim(cval) == '.true.')
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_rearranger", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             read(cval, *) pio_comp_settings(i)%pio_rearranger
+             
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_numiotasks", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             read(cval, *) pio_comp_settings(i)%pio_numiotasks
           
-          call NUOPC_CompAttributeGet(gcomp(i), name="pio_netcdf_format", value=cval, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          call driver_pio_getioformatfromname(cval, pio_comp_settings(i)%pio_netcdf_ioformat, PIO_64BIT_DATA)
+             if(pio_comp_settings(i)%pio_numiotasks < 0 .or. pio_comp_settings(i)%pio_numiotasks > npets) then
+                pio_comp_settings(i)%pio_numiotasks = max(1,npets/pio_comp_settings(i)%pio_stride)
+             endif
+
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_root", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             read(cval, *) pio_comp_settings(i)%pio_root
+             
+             if(pio_comp_settings(i)%pio_root < 0 .or. pio_comp_settings(i)%pio_root > npets) then
+                pio_comp_settings(i)%pio_root = 0
+             endif
           
-          if (pio_async_interface(i)) then
-             do_async_init = do_async_init + 1
-          else
-             if(pio_rearr_opts%comm_fc_opts_io2comp%max_pend_req < PIO_REARR_COMM_UNLIMITED_PEND_REQ) then
-                pio_rearr_opts%comm_fc_opts_io2comp%max_pend_req = pio_comp_settings(i)%pio_numiotasks
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_typename", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             
+             select case (trim(cval))
+             case ('pnetcdf')
+                pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_PNETCDF
+             case ('netcdf')
+                pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF
+             case ('netcdf4p')
+                pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF4P
+             case ('netcdf4c')
+                pio_comp_settings(i)%pio_iotype = PIO_IOTYPE_NETCDF4C
+             case DEFAULT
+                write (msgstr, *) "Invalid PIO_TYPENAME Setting for component ", trim(cval)
+                call ESMF_LogSetError(ESMF_RC_NOT_VALID, msg=msgstr, line=__LINE__, file=__FILE__, rcToReturn=rc)
+                return
+             end select
+             
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_async_interface", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             pio_async_interface(i) = (trim(cval) == '.true.')
+             
+             call NUOPC_CompAttributeGet(gcomp(i), name="pio_netcdf_format", value=cval, rc=rc)
+             if (chkerr(rc,__LINE__,u_FILE_u)) return
+             call driver_pio_getioformatfromname(cval, pio_comp_settings(i)%pio_netcdf_ioformat, PIO_64BIT_DATA)
+             
+             if (pio_async_interface(i)) then
+                do_async_init = do_async_init + 1
+             else
+                if(pio_rearr_opts%comm_fc_opts_io2comp%max_pend_req < PIO_REARR_COMM_UNLIMITED_PEND_REQ) then
+                   pio_rearr_opts%comm_fc_opts_io2comp%max_pend_req = pio_comp_settings(i)%pio_numiotasks
+                endif
+                if(pio_rearr_opts%comm_fc_opts_comp2io%max_pend_req < PIO_REARR_COMM_UNLIMITED_PEND_REQ) then
+                   pio_rearr_opts%comm_fc_opts_comp2io%max_pend_req = pio_comp_settings(i)%pio_numiotasks
+                endif
+                call pio_init(comp_rank ,comp_comm ,pio_comp_settings(i)%pio_numiotasks, 0, pio_comp_settings(i)%pio_stride, &
+                     pio_comp_settings(i)%pio_rearranger, iosystems(i), pio_comp_settings(i)%pio_root, &
+                     pio_rearr_opts)
              endif
-             if(pio_rearr_opts%comm_fc_opts_comp2io%max_pend_req < PIO_REARR_COMM_UNLIMITED_PEND_REQ) then
-                pio_rearr_opts%comm_fc_opts_comp2io%max_pend_req = pio_comp_settings(i)%pio_numiotasks
-             endif
-             call pio_init(comp_rank ,comp_comm ,pio_comp_settings(i)%pio_numiotasks, 0, pio_comp_settings(i)%pio_stride, &
-                  pio_comp_settings(i)%pio_rearranger, iosystems(i), pio_comp_settings(i)%pio_root, &
-                  pio_rearr_opts)
           endif
        endif
     enddo
