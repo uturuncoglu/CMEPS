@@ -256,8 +256,8 @@ contains
 
     ! to atm: unmerged flux components from lnd
     if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
-       allocate(flds(3))
-       flds = (/ 'lat ', 'sen ', 'evap', 'gflx' /)
+       allocate(flds(6))
+       flds = (/ 'lat ', 'sen ', 'evap', 'gflx', 'roff', 'soff' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
              call addfld_from(complnd, 'Fall_'//trim(flds(n)))
@@ -277,7 +277,7 @@ contains
 
     ! to atm: unmerged state variables from lnd
     if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
-       allocate(flds(3))
+       allocate(flds(4))
        flds = (/ 'sfrac', 'tref ', 'qref ', 'q    ' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
