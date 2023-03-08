@@ -277,8 +277,8 @@ contains
 
     ! to atm: unmerged state variables from lnd
     if (is_local%wrap%comp_present(complnd) .and. is_local%wrap%comp_present(compatm)) then
-       allocate(flds(6))
-       flds = (/ 'sfrac', 'tref ', 'qref ', 'q    ', 'cmm  ', 'chh  ' /)
+       allocate(flds(7))
+       flds = (/ 'sfrac', 'tref ', 'qref ', 'q    ', 'cmm  ', 'chh  ', 'zvfun' /)
        if (phase == 'advertise') then
           do n = 1,size(flds)
              call addfld_from(complnd, 'Sl_'//trim(flds(n)))
