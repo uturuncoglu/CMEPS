@@ -822,7 +822,7 @@ contains
     else if (trim(coupling_mode(1:4)) == 'hafs') then
        call esmFldsExchange_hafs(gcomp, phase='advertise', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    else if (trim(coupling_mode(1:4)) == 'coastal') then
+    else if (trim(coupling_mode) == 'coastal') then
        call esmFldsExchange_coastal(gcomp, phase='advertise', rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else
