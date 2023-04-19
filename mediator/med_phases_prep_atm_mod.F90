@@ -115,6 +115,7 @@ contains
     !---------------------------------------
     if (trim(coupling_mode) == 'cesm' .or. &
         trim(coupling_mode) == 'hafs' .or. &
+        trim(coupling_mode) == 'coastal' .or. &
         trim(coupling_mode) == 'nems_frac_aoflux' .or. &
         trim(coupling_mode) == 'nems_frac_aoflux_sbs') then
        if (is_local%wrap%aoflux_grid == 'ogrid') then
@@ -134,7 +135,8 @@ contains
     fldList => med_fldList_GetfldListTo(compatm)
     if (trim(coupling_mode) == 'cesm' .or. &
         trim(coupling_mode) == 'nems_frac_aoflux' .or. &
-        trim(coupling_mode) == 'hafs') then
+        trim(coupling_mode) == 'hafs' .or. &
+        trim(coupling_mode) == 'coastal') then
        call med_merge_auto(&
             is_local%wrap%med_coupling_active(:,compatm), &
             is_local%wrap%FBExp(compatm), &

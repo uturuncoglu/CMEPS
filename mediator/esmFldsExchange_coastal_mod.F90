@@ -215,6 +215,7 @@ contains
     use med_internalstate_mod , only : mapfcopy, mapnstod, mapnstod_consd
     use med_internalstate_mod , only : mapfillv_bilnr
     use med_internalstate_mod , only : mapnstod_consf
+    use med_internalstate_mod , only : mapbilnr_nstod
     use esmFlds               , only : addmap_from => med_fldList_addmap_from
     use esmFlds               , only : addmrg_to   => med_fldList_addmrg_to
 
@@ -276,7 +277,7 @@ contains
     ! to ocn: state fields
     ! ---------------------------------------------------------------------
     if (coastal_attr%atm_present .and. coastal_attr%ocn_present) then
-      allocate(S_flds(6))
+      allocate(S_flds(3))
       S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
                  'Sa_v10m', & ! inst_merid_wind_height10m
                  'Sa_pslv' /) ! inst_pres_height_surface
@@ -286,7 +287,7 @@ contains
              fldchk(is_local%wrap%FBImp(compatm,compatm),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compatm, trim(fldname), compocn, &
-                 mapfillv_bilnr, coastal_attr%mapnorm, coastal_attr%atm2ocn_smap)
+                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%atm2ocn_smap)
             call addmrg_to(compocn, trim(fldname), &
                  mrg_from=compatm, mrg_fld=trim(fldname), mrg_type='copy')
          end if

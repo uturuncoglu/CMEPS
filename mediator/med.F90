@@ -1357,7 +1357,7 @@ contains
       if (ESMF_StateIsCreated(is_local%wrap%NStateImp(n1),rc=rc)) then
          call ESMF_LogWrite(trim(subname)//": calling completeFieldInitialize import states from "//trim(compname(n1)), &
               ESMF_LOGMSG_INFO)
-        call completeFieldInitialization(is_local%wrap%NStateImp(n1), rc=rc)
+        call completeFieldInitialization(is_local%wrap%NStateImp(n1), 'import_from_'//trim(compname(n1)), rc=rc)
         if (ChkErr(rc,__LINE__,u_FILE_u)) return
         call State_reset(is_local%wrap%NStateImp(n1), value=spval_init, rc=rc)
         if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1367,7 +1367,7 @@ contains
       if (ESMF_StateIsCreated(is_local%wrap%NStateExp(n1),rc=rc)) then
          call ESMF_LogWrite(trim(subname)//": calling completeFieldInitialize export states to "//trim(compname(n1)), &
               ESMF_LOGMSG_INFO)
-        call completeFieldInitialization(is_local%wrap%NStateExp(n1), rc=rc)
+        call completeFieldInitialization(is_local%wrap%NStateExp(n1), 'export_to_'//trim(compname(n1)), rc=rc)
         if (ChkErr(rc,__LINE__,u_FILE_u)) return
         call State_reset(is_local%wrap%NStateExp(n1), value=spval_init, rc=rc)
         if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -1383,7 +1383,7 @@ contains
 
   contains  !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    subroutine completeFieldInitialization(State,rc)
+    subroutine completeFieldInitialization(State,string,rc)
 
       use ESMF  , only : operator(==)
       use ESMF  , only : ESMF_State, ESMF_MAXSTR, ESMF_Grid, ESMF_Mesh, ESMF_Field, ESMF_FieldStatus_Flag
@@ -1395,6 +1395,7 @@ contains
 
       ! input/output variables
       type(ESMF_State)   , intent(inout) :: State
+      character(len=*)   , intent(in)    :: string
       integer            , intent(out)   :: rc
 
       ! local varaibles
@@ -1509,6 +1510,13 @@ contains
                call Field_GeomPrint(fieldlist(n), trim(subname)//':'//trim(fieldName), rc=rc)
                if (ChkErr(rc,__LINE__,u_FILE_u)) return
 
+               if (dbug_flag > 20 .and. trim(fieldName) /= is_local%wrap%flds_scalar_name) then
+                  call ESMF_FieldGet(fieldList(n), mesh=mesh, rc=rc)
+                  if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+                  call ESMF_MeshWrite(mesh, filename=trim(string)//'_'//trim(fieldName)//'_mesh', rc=rc)
+                  if (chkerr(rc,__LINE__,u_FILE_u)) return
+               end if
             end if
 
          enddo ! end of loop over fields

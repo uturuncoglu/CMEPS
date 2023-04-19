@@ -119,6 +119,7 @@ contains
     if ( trim(coupling_mode) == 'cesm' .or. &
          trim(coupling_mode) == 'nems_orig_data' .or. &
          trim(coupling_mode) == 'nems_frac_aoflux' .or. &
+         trim(coupling_mode) == 'coastal' .or. &
          trim(coupling_mode) == 'hafs') then
        call med_merge_auto(&
             is_local%wrap%med_coupling_active(:,compocn), &

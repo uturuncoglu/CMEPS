@@ -592,7 +592,8 @@ contains
        if (is_local%wrap%comp_present(compatm)) defaultMasks(compatm,1) = 1
     endif
     if ( trim(coupling_mode) == 'coastal') then
-       if (is_local%wrap%comp_present(compatm)) defaultMasks(compatm,1) = 1
+       if (is_local%wrap%comp_present(compatm)) defaultMasks(compatm,:) = 1
+       if (is_local%wrap%comp_present(compocn)) defaultMasks(compocn,:) = ispval_mask
     endif
     if ( trim(coupling_mode) /= 'cesm') then
        if (is_local%wrap%comp_present(compatm) .and. trim(atm_name(1:4)) == 'datm') then
