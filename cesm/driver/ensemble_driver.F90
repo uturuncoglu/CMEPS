@@ -340,12 +340,14 @@ contains
           else
              inst_suffix = ''
           endif
+          ! CESM does not use this ESMF feature and at large processor counts it can be expensive to have it on.
+          call NUOPC_CompAttributeSet(driver, name="HierarchyProtocol", value="off", rc=rc)
+          if (chkerr(rc,__LINE__,u_FILE_u)) return
           
           ! Set the driver instance attributes
           call NUOPC_CompAttributeAdd(driver, attrList=(/'read_restart'/), rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
-          write(inst_suffix,'(a,i4.4)') '_',inst
-          call NUOPC_CompAttributeSet(driver, name='inst_suffix', value=inst_suffix, rc=rc)
+          call NUOPC_CompAttributeSet(driver, name='read_restart', value=trim(read_restart_string), rc=rc)
           if (chkerr(rc,__LINE__,u_FILE_u)) return
           
           call ReadAttributes(driver, config, "CLOCK_attributes::", rc=rc)
@@ -372,20 +374,8 @@ contains
              maintask = .true.
           endif
 
-       ! Set the driver log to the driver task 0
-       if (mod(localPet, ntasks_per_member) == 0) then
-          call NUOPC_CompAttributeGet(driver, name="diro", value=diro, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          call NUOPC_CompAttributeGet(driver, name="logfile", value=logfile, rc=rc)
-          if (chkerr(rc,__LINE__,u_FILE_u)) return
-          open (newunit=logunit,file=trim(diro)//"/"//trim(logfile))
-          maintask = .true.
-       else
-          logUnit = 6
-          maintask = .false.
        endif
        call shr_log_setLogUnit (logunit)
-
        ! Create a clock for each driver instance
        call esm_time_clockInit(ensemble_driver, driver, logunit, localpet==petList(1), rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return

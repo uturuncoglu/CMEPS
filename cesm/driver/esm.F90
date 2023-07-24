@@ -796,7 +796,7 @@ contains
 #ifndef NO_MPI2
     use mpi          , only : MPI_COMM_NULL, mpi_comm_size
 #endif
-    use mct_mod      , only : mct_world_init
+    use m_MCTWorld   , only : mct_world_init => init
 
 #ifdef MED_PRESENT
     use med_internalstate_mod , only : med_id
@@ -1519,7 +1519,6 @@ contains
     rc = ESMF_SUCCESS
 
     call shr_log_setLogunit(logunit)
-
     call ESMF_GridCompGet(driver, vm=vm, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
     call ESMF_VMGet(vm, mpiCommunicator=mpicomm, rc=rc)
