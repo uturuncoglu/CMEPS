@@ -10,6 +10,7 @@ module esmFldsExchange_coastal_mod
   use med_internalstate_mod , only : compmed
   use med_internalstate_mod , only : compatm
   use med_internalstate_mod , only : compocn
+  use med_internalstate_mod , only : compwav
   use med_internalstate_mod , only : ncomps
   use med_internalstate_mod , only : coupling_mode
 
@@ -31,11 +32,16 @@ module esmFldsExchange_coastal_mod
     character(len=CX) :: atm2ocn_fmap = 'unset'
     character(len=CX) :: atm2ocn_smap = 'unset'
     character(len=CX) :: atm2ocn_vmap = 'unset'
+    character(len=CX) :: atm2wav_smap = 'unset'
     character(len=CX) :: ocn2atm_fmap = 'unset'
     character(len=CX) :: ocn2atm_smap = 'unset'
+    character(len=CX) :: ocn2wav_smap = 'unset'
+    character(len=CX) :: wav2ocn_smap = 'unset'
+    character(len=CX) :: wav2atm_smap = 'unset'
     character(len=CS) :: mapnorm      = 'one'
     logical           :: atm_present  = .false.
     logical           :: ocn_present  = .false.
+    logical           :: wav_present  = .false.
   end type
 
 !===============================================================================
@@ -156,6 +162,26 @@ contains
          fldname = trim(S_flds(n))
          call addfld_from(compatm, trim(fldname))
          call addfld_to(compocn, trim(fldname))
+      end do
+      deallocate(S_flds)
+    end if
+
+    !=====================================================================
+    ! FIELDS TO WAVE (compwav)
+    !=====================================================================
+
+    ! ---------------------------------------------------------------------
+    ! to ocn: state fields
+    ! ---------------------------------------------------------------------
+    if (coastal_attr%atm_present .and. coastal_attr%wav_present) then
+      allocate(S_flds(3))
+      S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
+                 'Sa_v10m', & ! inst_merid_wind_height10m
+                 'Sa_pslv' /) ! inst_pres_height_surface
+      do n = 1,size(S_flds)
+         fldname = trim(S_flds(n))
+         call addfld_from(compatm, trim(fldname))
+         call addfld_to(compwav, trim(fldname))
       end do
       deallocate(S_flds)
     end if
@@ -295,6 +321,32 @@ contains
       deallocate(S_flds)
     end if
 
+    !=====================================================================
+    ! FIELDS TO WAVE (compwav)
+    !=====================================================================
+
+    ! ---------------------------------------------------------------------
+    ! to wav: state fields 
+    ! ---------------------------------------------------------------------
+    if (coastal_attr%atm_present .and. coastal_attr%wav_present) then
+      allocate(S_flds(3))
+      S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
+                 'Sa_v10m', & ! inst_merid_wind_height10m
+                 'Sa_pslv' /) ! inst_pres_height_surface
+      do n = 1,size(S_flds)
+         fldname = trim(S_flds(n))
+         if (fldchk(is_local%wrap%FBExp(compocn),trim(fldname),rc=rc) .and. &
+             fldchk(is_local%wrap%FBImp(compatm,compatm),trim(fldname),rc=rc) &
+            ) then
+            call addmap_from(compatm, trim(fldname), compwav, &
+                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%atm2wav_smap)
+            call addmrg_to(compwav, trim(fldname), &
+                 mrg_from=compatm, mrg_fld=trim(fldname), mrg_type='copy')
+         end if
+      end do
+      deallocate(S_flds)
+    end if
+
     call ESMF_LogWrite(trim(subname)//": done", ESMF_LOGMSG_INFO)
 
   end subroutine esmFldsExchange_coastal_init
@@ -340,6 +392,13 @@ contains
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
     if (isPresent .and. isSet) then
        if (trim(cvalue) /= 'socn') coastal_attr%ocn_present = .true.
+    end if
+
+    call NUOPC_CompAttributeGet(gcomp, name='WAV_model', &
+       value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent .and. isSet) then
+       if (trim(cvalue) /= 'swav') coastal_attr%wav_present = .true.
     end if
 
     !----------------------------------------------------------
@@ -400,6 +459,24 @@ contains
     if (isPresent) then
        call NUOPC_CompAttributeGet(gcomp, name='atm2ocn_vmapname', &
           value=coastal_attr%atm2ocn_vmap, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
+    end if
+
+    ! to wav
+    call NUOPC_CompAttributeGet(gcomp, name='atm2wav_smapname', &
+       isPresent=isPresent, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent) then
+       call NUOPC_CompAttributeGet(gcomp, name='atm2wav_smapname', &
+          value=coastal_attr%atm2wav_smap, rc=rc)
+       if (chkerr(rc,__LINE__,u_FILE_u)) return
+    end if
+    call NUOPC_CompAttributeGet(gcomp, name='ocn2wav_smapname', &
+       isPresent=isPresent, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
+    if (isPresent) then
+       call NUOPC_CompAttributeGet(gcomp, name='ocn2wav_smapname', &
+          value=coastal_attr%ocn2wav_smap, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
     end if
 
