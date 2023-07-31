@@ -171,13 +171,12 @@ contains
     !=====================================================================
 
     ! ---------------------------------------------------------------------
-    ! to ocn: state fields
+    ! to wav: state fields
     ! ---------------------------------------------------------------------
     if (coastal_attr%atm_present .and. coastal_attr%wav_present) then
-      allocate(S_flds(3))
+      allocate(S_flds(2))
       S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
-                 'Sa_v10m', & ! inst_merid_wind_height10m
-                 'Sa_pslv' /) ! inst_pres_height_surface
+                 'Sa_v10m' /) ! inst_merid_wind_height10m
       do n = 1,size(S_flds)
          fldname = trim(S_flds(n))
          call addfld_from(compatm, trim(fldname))
@@ -329,13 +328,12 @@ contains
     ! to wav: state fields 
     ! ---------------------------------------------------------------------
     if (coastal_attr%atm_present .and. coastal_attr%wav_present) then
-      allocate(S_flds(3))
+      allocate(S_flds(2))
       S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
-                 'Sa_v10m', & ! inst_merid_wind_height10m
-                 'Sa_pslv' /) ! inst_pres_height_surface
+                 'Sa_v10m' /) ! inst_merid_wind_height10m
       do n = 1,size(S_flds)
          fldname = trim(S_flds(n))
-         if (fldchk(is_local%wrap%FBExp(compocn),trim(fldname),rc=rc) .and. &
+         if (fldchk(is_local%wrap%FBExp(compwav),trim(fldname),rc=rc) .and. &
              fldchk(is_local%wrap%FBImp(compatm,compatm),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compatm, trim(fldname), compwav, &
