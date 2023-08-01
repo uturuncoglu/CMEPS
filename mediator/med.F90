@@ -1728,8 +1728,9 @@ contains
 
                ! Check import FB, if there is no field in it then use export FB
                ! to provide mesh information
-               call State_GetNumFields(is_local%wrap%NStateImp(n2), fieldCount, rc=rc)
+               call State_GetNumFields(is_local%wrap%NStateImp(n2), fieldCount, is_local%wrap%flds_scalar_name, rc=rc)
                if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
                if (fieldCount == 0) then
                  call FB_init(is_local%wrap%FBImp(n1,n2), is_local%wrap%flds_scalar_name, &
                       STgeom=is_local%wrap%NStateExp(n2), &
