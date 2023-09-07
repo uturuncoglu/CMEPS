@@ -1482,7 +1482,7 @@ contains
                meshField = ESMF_FieldCreate(mesh, typekind=ESMF_TYPEKIND_R8, &
                     meshloc=ESMF_MESHLOC_ELEMENT, name=fieldName, rc=rc)
                if (ChkErr(rc,__LINE__,u_FILE_u)) return
-
+               
                ! Swap grid for mesh, at this point, only connected fields are in the state
                call NUOPC_Realize(State, field=meshField, rc=rc)
                if (ChkErr(rc,__LINE__,u_FILE_u)) return
@@ -2386,14 +2386,15 @@ contains
   subroutine med_grid_write(grid, fileName, rc)
 
     use ESMF, only : ESMF_Grid, ESMF_Array, ESMF_ArrayBundle
-    use ESMF, only : ESMF_ArrayBundleCreate, ESMF_GridGet
+    use ESMF, only : ESMF_ArrayBundleCreate, ESMF_GridGet, ESMF_GridWriteVTK
     use ESMF, only : ESMF_GridGetCoord, ESMF_ArraySet, ESMF_ArrayBundleAdd
     use ESMF, only : ESMF_GridGetItem, ESMF_ArrayBundleWrite, ESMF_ArrayBundleDestroy
     use ESMF, only : ESMF_STAGGERLOC_CENTER, ESMF_STAGGERLOC_CORNER
+    use ESMF, only : ESMF_STAGGERLOC_EDGE1, ESMF_STAGGERLOC_EDGE2
     use ESMF, only : ESMF_SUCCESS, ESMF_GRIDITEM_MASK, ESMF_GRIDITEM_AREA
 
     ! input/output variables
-    type(ESMF_Grid) , intent(in)  :: grid
+    type(ESMF_Grid) , intent(inout)  :: grid
     character(len=*), intent(in)  :: fileName
     integer         , intent(out) :: rc
 
@@ -2436,6 +2437,9 @@ contains
         call ESMF_ArraySet(array, name="lat_center", rc=rc)
         if (chkerr(rc,__LINE__,u_FILE_u)) return
         call ESMF_ArrayBundleAdd(arrayBundle, (/array/), rc=rc)
+        if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+        call ESMF_GridWriteVTK(grid, filename='grid_center', staggerLoc=ESMF_STAGGERLOC_CENTER, rc=rc)
         if (chkerr(rc,__LINE__,u_FILE_u)) return
       endif
 
@@ -2488,7 +2492,32 @@ contains
         if (chkerr(rc,__LINE__,u_FILE_u)) return
         call ESMF_ArrayBundleAdd(arrayBundle, (/array/), rc=rc)
         if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+        call ESMF_GridWriteVTK(grid, filename='grid_corner', staggerLoc=ESMF_STAGGERLOC_CORNER, rc=rc)
+        if (chkerr(rc,__LINE__,u_FILE_u)) return
       endif
+
+      ! Query grid for u stagger
+      ! Coordinates
+      call ESMF_GridGetCoord(grid, staggerLoc=ESMF_STAGGERLOC_EDGE1, &
+            isPresent=isPresent, rc=rc)
+      if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+      if (isPresent) then
+        call ESMF_GridWriteVTK(grid, filename='grid_u', staggerLoc=ESMF_STAGGERLOC_EDGE1, rc=rc)
+        if (chkerr(rc,__LINE__,u_FILE_u)) return
+      end if
+
+      ! Query grid for v stagger
+      ! Coordinates
+      call ESMF_GridGetCoord(grid, staggerLoc=ESMF_STAGGERLOC_EDGE2, &
+            isPresent=isPresent, rc=rc)
+      if (chkerr(rc,__LINE__,u_FILE_u)) return
+
+      if (isPresent) then
+        call ESMF_GridWriteVTK(grid, filename='grid_v', staggerLoc=ESMF_STAGGERLOC_EDGE2, rc=rc)
+        if (chkerr(rc,__LINE__,u_FILE_u)) return
+      end if
 
       ! Mask
       call ESMF_GridGetItem(grid, itemflag=ESMF_GRIDITEM_MASK, &
