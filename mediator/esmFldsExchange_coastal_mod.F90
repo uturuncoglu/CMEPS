@@ -154,10 +154,15 @@ contains
     ! to ocn: state fields
     ! ---------------------------------------------------------------------
     if (coastal_attr%atm_present .and. coastal_attr%ocn_present) then
-      allocate(S_flds(3))
-      S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
-                 'Sa_v10m', & ! inst_merid_wind_height10m
-                 'Sa_pslv' /) ! inst_pres_height_surface
+      allocate(S_flds(8))
+      S_flds = (/'Sa_u10m   ', & ! inst_zonal_wind_height10m
+                 'Sa_v10m   ', & ! inst_merid_wind_height10m
+                 'Sa_pslv   ', & ! inst_pres_height_surface!
+                 'Sa_t2m    ', & ! inst_temp_height2m
+                 'Sa_q2m    ', & ! inst_spec_humid_height2m
+                 'Faxa_lwdn ', & ! mean_down_lw_flx
+                 'Faxa_swnet', & ! mean_net_sw_flx
+                 'Faxa_rain ' /) ! mean_prec_rate
       do n = 1,size(S_flds)
          fldname = trim(S_flds(n))
          call addfld_from(compatm, trim(fldname))
@@ -302,10 +307,15 @@ contains
     ! to ocn: state fields
     ! ---------------------------------------------------------------------
     if (coastal_attr%atm_present .and. coastal_attr%ocn_present) then
-      allocate(S_flds(3))
-      S_flds = (/'Sa_u10m', & ! inst_zonal_wind_height10m
-                 'Sa_v10m', & ! inst_merid_wind_height10m
-                 'Sa_pslv' /) ! inst_pres_height_surface
+      allocate(S_flds(8))
+      S_flds = (/'Sa_u10m   ', & ! inst_zonal_wind_height10m
+                 'Sa_v10m   ', & ! inst_merid_wind_height10m
+                 'Sa_pslv   ', & ! inst_pres_height_surface!
+                 'Sa_t2m    ', & ! inst_temp_height2m
+                 'Sa_q2m    ', & ! inst_spec_humid_height2m
+                 'Faxa_lwdn ', & ! mean_down_lw_flx
+                 'Faxa_swnet', & ! mean_net_sw_flx
+                 'Faxa_rain ' /) ! mean_prec_rate
       do n = 1,size(S_flds)
          fldname = trim(S_flds(n))
          if (fldchk(is_local%wrap%FBExp(compocn),trim(fldname),rc=rc) .and. &
