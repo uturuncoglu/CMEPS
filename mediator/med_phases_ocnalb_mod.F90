@@ -24,7 +24,7 @@ module med_phases_ocnalb_mod
   !--------------------------------------------------------------------------
   ! Private interfaces
   !--------------------------------------------------------------------------
-#ifdef CESMCOUPLED
+
   private med_phases_ocnalb_init
   private med_phases_ocnalb_orbital_update
   private med_phases_ocnalb_orbital_init
@@ -52,7 +52,7 @@ module med_phases_ocnalb_mod
   real(R8)               :: orb_obliq       ! attribute - obliquity in degrees
   real(R8)               :: orb_mvelp       ! attribute - moving vernal equinox longitude
   real(R8)               :: orb_eccen       ! attribute and update-  orbital eccentricity
-#endif
+
   character(len=*) , parameter :: orb_fixed_year       = 'fixed_year'
   character(len=*) , parameter :: orb_variable_year    = 'variable_year'
   character(len=*) , parameter :: orb_fixed_parameters = 'fixed_parameters'
@@ -67,7 +67,7 @@ module med_phases_ocnalb_mod
 !===============================================================================
 contains
 !===============================================================================
-#ifdef CESMCOUPLED
+
   subroutine med_phases_ocnalb_init(gcomp, ocnalb, rc)
 
     !-----------------------------------------------------------------------
@@ -242,7 +242,7 @@ contains
           call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO)
        end if
     end if
-    write(msg,'(A,l)') trim(subname)//': use_nextswcday setting is ',use_nextswcday
+    write(msg,'(A,l1)') trim(subname)//': use_nextswcday setting is ',use_nextswcday
     call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO)
 
     if (dbug_flag > 5) then
@@ -251,7 +251,7 @@ contains
     call t_stopf('MED:'//subname)
 
   end subroutine med_phases_ocnalb_init
-#endif
+
   !===============================================================================
 
   subroutine med_phases_ocnalb_run(gcomp, rc)
@@ -287,6 +287,7 @@ contains
     type(ESMF_Clock)        :: clock
     type(ESMF_Clock)        :: dclock
     type(ESMF_Time)         :: currTime
+    type(ESMF_Time)         :: nextTime
     type(ESMF_TimeInterval) :: timeStep
     character(CL)           :: cvalue
     character(CS)           :: starttype        ! config start type
@@ -312,7 +313,7 @@ contains
     logical                 :: first_call = .true.
     character(len=*)  , parameter :: subname='(med_phases_ocnalb_run)'
     !---------------------------------------
-#endif
+
     rc = ESMF_SUCCESS
 
     ! Determine main task
@@ -510,6 +511,7 @@ contains
   end subroutine med_phases_ocnalb_run
 
 !===============================================================================
+
   subroutine med_phases_ocnalb_orbital_init(gcomp, logunit, maintask, rc)
 
     !----------------------------------------------------------
@@ -669,7 +671,6 @@ contains
     endif
 
   end subroutine med_phases_ocnalb_orbital_update
-#endif
 
 !===============================================================================
 
