@@ -665,9 +665,8 @@ contains
     integer         , optional, intent(out)   :: rc
 
     ! local variables
-    integer                          :: n
-    character(ESMF_MAXSTR), pointer  :: lfieldnamelist(:)
-    character(len=*) , parameter     :: subname='(med_methods_State_getNumFields)'
+    type(ESMF_Field), pointer          :: fieldList(:)
+    character(len=*),parameter         :: subname='(med_methods_State_getNumFields)'
     ! ----------------------------------------------
 
     if (dbug_flag > 10) then
@@ -1363,7 +1362,10 @@ contains
         call med_methods_Field_GetFldPtr(lfield, fldptr1=dataptro1, fldptr2=dataptro2, rank=lranko, rc=rc)
         if (chkerr(rc,__LINE__,u_FILE_u)) return
 
-        if (lranki == 1 .and. lranko == 1) then
+        if (lranki == 0 .and. lranko == 0) then
+           ! do nothing
+          call ESMF_LogWrite(trim(subname)//": Both ranki and ranko are 0", ESMF_LOGMSG_INFO)
+        elseif (lranki == 1 .and. lranko == 1) then
 
           if (.not.med_methods_FieldPtr_Compare(dataPtro1, dataPtri1, subname, rc)) then
             call ESMF_LogWrite(trim(subname)//": ERROR in dataPtr1 size ", ESMF_LOGMSG_ERROR)
@@ -1406,7 +1408,7 @@ contains
         else
 
           write(msgString,'(a,2i8)') trim(subname)//": ranki, ranko = ",lranki,lranko
-          call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
+          call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_ERROR)
           call ESMF_LogWrite(trim(subname)//": ERROR ranki ranko not supported "//trim(lfieldnamelist(n)), &
                ESMF_LOGMSG_ERROR)
           rc = ESMF_FAILURE

@@ -115,8 +115,6 @@ contains
     !--- map atm/ocn fluxes from ocn to atm grid if appropriate
     !---------------------------------------
     if (trim(coupling_mode) == 'cesm' .or. &
-        trim(coupling_mode) == 'hafs' .or. &
-        trim(coupling_mode) == 'coastal' .or. &
         trim(coupling_mode) == 'nems_frac_aoflux' .or. &
         trim(coupling_mode) == 'nems_frac_aoflux_sbs') then
        if (is_local%wrap%aoflux_grid == 'ogrid') then
@@ -135,9 +133,7 @@ contains
     !---------------------------------------
     fldList => med_fldList_GetfldListTo(compatm)
     if (trim(coupling_mode) == 'cesm' .or. &
-        trim(coupling_mode) == 'nems_frac_aoflux' .or. &
-        trim(coupling_mode) == 'hafs' .or. &
-        trim(coupling_mode) == 'coastal') then
+        trim(coupling_mode) == 'nems_frac_aoflux') then
        call med_merge_auto(&
             is_local%wrap%med_coupling_active(:,compatm), &
             is_local%wrap%FBExp(compatm), &
@@ -149,6 +145,8 @@ contains
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
     else if (trim(coupling_mode) == 'nems_frac' .or. &
              trim(coupling_mode) == 'nems_orig' .or. &
+             trim(coupling_mode) == 'hafs'      .or. &
+             trim(coupling_mode) == 'coastal'   .or. &
              trim(coupling_mode) == 'nems_frac_aoflux_sbs') then
        call med_merge_auto(&
             is_local%wrap%med_coupling_active(:,compatm), &
