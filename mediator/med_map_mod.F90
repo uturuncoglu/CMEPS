@@ -408,8 +408,8 @@ contains
          dstMaskValue = ispval_mask
       endif
     end if
-    if (trim(coupling_mode(1:4)) == 'nems') then
-       if ((n1 == compatm .and. n2 == complnd) .or. (n1 == complnd .and. n2 == compatm)) then
+    if (trim(coupling_mode(1:3)) == 'ufs') then
+       if (n1 == compatm .and. n2 == complnd) then
           srcMaskValue = ispval_mask
           dstMaskValue = ispval_mask
        end if
@@ -424,7 +424,7 @@ contains
     call ESMF_LogWrite(trim(string), ESMF_LOGMSG_INFO)
 
     polemethod=ESMF_POLEMETHOD_ALLAVG
-    if (trim(coupling_mode) == 'cesm' .or. trim(coupling_mode(1:4)) == 'nems') then
+    if (trim(coupling_mode) == 'cesm' .or. trim(coupling_mode(1:3)) == 'ufs') then
        if (n1 == compwav .or. n2 == compwav) then
          polemethod = ESMF_POLEMETHOD_NONE ! todo: remove this when ESMF tripolar mapping fix is in place.
        endif
