@@ -751,9 +751,9 @@ contains
        allocate(flds(18))
        flds = (/'Sa_z      ', 'Sa_ta     ', 'Sa_pslv   ', 'Sa_qa     ', &
                 'Sa_u      ', 'Sa_v      ', 'Faxa_swdn ', 'Faxa_lwdn ', &
-                'Faxa_swnet', 'Faxa_rain ', 'Sa_prsl   ', 'vfrac     ', &
+                'Faxa_swnet', 'Faxa_rain ', 'Sa_prsl   ', 'Sa_vfrac  ', &
                 'Faxa_snow ', 'Faxa_rainc', 'Sa_tskn   ', 'Sa_exner  ', &
-                'Sa_ustar  ', 'zorl      ' /)
+                'Sa_ustar  ', 'Sa_zorl   ' /)
     end if
     do n = 1,size(flds)
        fldname = trim(flds(n))
