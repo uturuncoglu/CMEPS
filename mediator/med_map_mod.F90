@@ -967,6 +967,7 @@ contains
     real(r8), pointer             :: data_dst(:,:)
     character(cl)                 :: field_name
     character(cl), allocatable    :: field_namelist_dat(:)
+    logical                       :: isFound
     logical                       :: skip_mapping
     type(ESMF_Region_Flag)        :: zeroregion
     real(ESMF_KIND_R8), parameter :: fillValue = 9.99e20_ESMF_KIND_R8
@@ -1088,6 +1089,7 @@ contains
                      if (maintask) write(logunit,'(a)') trim(subname)//" search "//trim(field_name)//" field for background fill."
 
                      ! Check if field has match in data fields
+                     isFound = .false.
                      do nfd = 1, fieldcount_dat
                         ! Debug output for checked fields to find match
                         if (maintask .and. dbug_flag > 1) write(logunit,'(a)') trim(field_name)//" - "//trim(field_namelist_dat(nfd))
@@ -1105,15 +1107,8 @@ contains
                               if (chkerr(rc,__LINE__,u_FILE_u)) return
                            end if
 
-                           ! Get pointer from destination field and fill it with data
-                           if (ungriddedUBound(1) > 0) then
-                              ! TODO: Currently assumes same data along the ungridded dimension
-                              do nu = 1,ungriddedUBound(1)
-                                 dataptr2d_packed(np+nu-1,:) = dataptr(:)
-                              end do
-                           else
-                              dataptr2d_packed(np,:) = dataptr(:)
-                           end if
+                           ! Fill destination field with background data coming from stream
+                           dataptr2d_packed(np,:) = dataptr(:)
 
                            if (dbug_flag > 1) then
                               call Field_diagnose(packed_data(mapindex)%field_dst, trim(field_name), " --> after  background fill: ", rc=rc)
@@ -1121,11 +1116,20 @@ contains
                            end if
 
                            ! Exit from loop since match is already found
+                           isFound = .true.
                            exit
                         end if
-                     end do
+                     end do ! loop for stream fields
+
+                     ! Could not find match in the list of stream fields
+                     if (.not. isFound) then
+                        if (maintask) write(logunit,'(a)') trim(subname)//" field "//trim(field_name)//" is not found!"
+
+                        ! Fill destination field with very large background data
+                        dataptr2d_packed(np,:) = fillValue
+                     end if
                    end if
-                end do
+                end do ! loop for destination fields
 
                 ! Set zeroregion option to select since we are blending data
                 zeroregion = ESMF_REGION_SELECT
