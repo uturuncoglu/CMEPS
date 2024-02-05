@@ -429,6 +429,9 @@ contains
          polemethod = ESMF_POLEMETHOD_NONE ! todo: remove this when ESMF tripolar mapping fix is in place.
        endif
     end if
+    if (trim(coupling_mode) == 'hafs.mom6') then
+       polemethod = ESMF_POLEMETHOD_NONE
+    endif
 
     ! Create route handle
     if (mapindex == mapfcopy) then
