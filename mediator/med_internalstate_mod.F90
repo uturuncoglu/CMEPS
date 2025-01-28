@@ -106,7 +106,7 @@ module med_internalstate_mod
      type(ESMF_Field)     :: field_fracdst
   end type packed_data_type
 
-  logical, public :: dststatus_print = .false.
+  logical, public :: write_dststatus = .false.
 
   ! Mesh info
   type, public ::  mesh_info_type
@@ -189,6 +189,8 @@ module med_internalstate_mod
 
     ! Data
     type(ESMF_FieldBundle) , pointer :: FBData(:)    ! Background data for various components, on their grid, provided by CDEPS inline
+    ! DstStatus
+    type(ESMF_FieldBundle) , pointer :: FBDstStatus(:) ! DstStatus fields for components for each source component and maptype
 
     ! Accumulators for export field bundles
     type(ESMF_FieldBundle) :: FBExpAccumOcn      ! Accumulator for Ocn export on Ocn grid
@@ -259,6 +261,23 @@ contains
       end if
     else
       samegrid_atmlnd = .true.
+    end if
+
+    ! flexibility to overwrite samegrid_atmlnd option
+    call NUOPC_CompAttributeGet(gcomp, name='samegrid_atmlnd', value=cvalue, &
+         isPresent=isPresent, isSet=isSet, rc=rc)
+    if (ChkErr(rc,__LINE__,u_FILE_u)) return
+
+    if (isPresent .and. isSet) then
+       if (trim(cvalue) == '.true.' .or. trim(cvalue) == 'true') then
+          samegrid_atmlnd = .true.
+       else
+          samegrid_atmlnd = .false.
+       end if
+    end if
+
+    if (maintask) then
+       write(logunit,'(a,l)') trim(subname)//' atm and lnd is on same grid = ', samegrid_atmlnd
     end if
 
     ! See med_fraction_mod for the following definitions
@@ -429,12 +448,15 @@ contains
        write(logunit,*)
     end if
 
-    ! Obtain dststatus_print setting if present
-    call NUOPC_CompAttributeGet(gcomp, name='dststatus_print', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
+    ! Allocate dststatus FB if needed
+    call NUOPC_CompAttributeGet(gcomp, name='write_dststatus', value=cvalue, isPresent=isPresent, isSet=isSet, rc=rc)
     if (ChkErr(rc,__LINE__,u_FILE_u)) return
-    if (isPresent .and. isSet) dststatus_print=(trim(cvalue) == "true")
-    write(msgString,*) trim(subname)//': Mediator dststatus_print is ',dststatus_print
+    if (isPresent .and. isSet) write_dststatus=(trim(cvalue) == "true")
+    write(msgString,*) trim(subname)//': Mediator write_dststatus is ',write_dststatus
     call ESMF_LogWrite(trim(msgString), ESMF_LOGMSG_INFO)
+    if (write_dststatus) then
+       allocate(is_local%wrap%FBDstStatus(ncomps))
+    end if
 
     ! Initialize flag for background fill using data
     is_local%wrap%med_data_active(:,:) = .false.
