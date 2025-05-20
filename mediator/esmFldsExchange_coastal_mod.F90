@@ -369,7 +369,7 @@ contains
              fldchk(is_local%wrap%FBImp(compatm,compatm),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compatm, trim(fldname), compocn, &
-                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%atm2ocn_smap)
+                 mapnstod_consf, coastal_attr%mapnorm, coastal_attr%atm2ocn_smap)
             call addmrg_to(compocn, trim(fldname), &
                  mrg_from=compatm, mrg_fld=trim(fldname), mrg_type='copy')
          end if
@@ -404,7 +404,7 @@ contains
              fldchk(is_local%wrap%FBImp(compwav,compwav),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compwav, trim(fldname), compocn, &
-                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%wav2ocn_smap)
+                 mapnstod_consf, coastal_attr%mapnorm, coastal_attr%wav2ocn_smap)
             call addmrg_to(compocn, trim(fldname), &
                  mrg_from=compwav, mrg_fld=trim(fldname), mrg_type='copy')
          end if
@@ -429,7 +429,7 @@ contains
              fldchk(is_local%wrap%FBImp(compatm,compatm),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compatm, trim(fldname), compwav, &
-                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%atm2wav_smap)
+                 mapnstod_consf, coastal_attr%mapnorm, coastal_attr%atm2wav_smap)
             call addmrg_to(compwav, trim(fldname), &
                  mrg_from=compatm, mrg_fld=trim(fldname), mrg_type='copy')
          end if
@@ -451,7 +451,7 @@ contains
              fldchk(is_local%wrap%FBImp(compocn,compocn),trim(fldname),rc=rc) &
             ) then
             call addmap_from(compocn, trim(fldname), compwav, &
-                 mapbilnr_nstod, coastal_attr%mapnorm, coastal_attr%ocn2wav_smap)
+                 mapnstod_consf, coastal_attr%mapnorm, coastal_attr%ocn2wav_smap)
             call addmrg_to(compwav, trim(fldname), &
                  mrg_from=compocn, mrg_fld=trim(fldname), mrg_type='copy')
          end if
