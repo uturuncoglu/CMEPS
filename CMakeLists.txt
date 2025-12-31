@@ -18,6 +18,7 @@ if (DEFINED CIMEROOT)
   endif()
   set(CMAKE_Fortran_FLAGS "${FFLAGS} -I${LIBROOT}/include -I${LIBROOT}/finclude -I${LIBROOT}/nuopc/esmf/${NINST_VALUE}/include")
 else()
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffree-line-length-none")
   set(BLD_STANDALONE TRUE)
 endif()
 
