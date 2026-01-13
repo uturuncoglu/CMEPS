@@ -1606,6 +1606,7 @@ contains
     use ESMF                    , only : ESMF_GridCompGet, ESMF_AttributeGet, ESMF_ClockGet, ESMF_Success
     use ESMF                    , only : ESMF_StateIsCreated, ESMF_StateGet, ESMF_FieldBundleIsCreated, ESMF_LogFlush
     use ESMF                    , only : ESMF_FieldBundleGet, ESMF_VM
+    use ESMF                    , only : ESMF_FieldGetTimestamp, ESMF_TimeGet
     use NUOPC                   , only : NUOPC_CompAttributeSet, NUOPC_IsAtTime, NUOPC_SetAttribute
     use NUOPC                   , only : NUOPC_CompAttributeGet
     use med_fraction_mod        , only : med_fraction_init, med_fraction_set
@@ -1653,6 +1654,8 @@ contains
     logical,save                       :: first_call = .true.
     real(r8)                           :: real_nx, real_ny, real_ntile
     character(len=CX)                  :: msgString
+    integer                            :: timestamp(10)
+    character(len=ESMF_MAXSTR)         :: timeStr1, timeStr2
     character(len=*), parameter :: subname = '('//__FILE__//':DataInitialize)'
     !-----------------------------------------------------------
 
@@ -2038,6 +2041,17 @@ contains
                 if (maintask) then
                    write(logunit,'(A)') trim(subname)//"MED - Initialize-Data-Dependency from ATM NOT YET SATISFIED!!!"
                 end if
+                ! Print field time stamp and current time for debugging
+                call ESMF_TimeGet(time, timeStringISOFrac=timeStr1, rc=rc)
+                if (ChkErr(rc,__LINE__,u_FILE_u)) return
+                call ESMF_FieldGetTimestamp(field, timestamp=timestamp, rc=rc)
+                if (ChkErr(rc,__LINE__,u_FILE_u)) return
+                write(timeStr2, fmt="(I4.4,A,I2.2,A,I2.2,A,I2.2,A,I2.2,A,I2.2)") &
+                  timestamp(1), "-", timestamp(2), "-", timestamp(3), "T", &
+                  timestamp(4), ":", timestamp(5), ":", timestamp(6)
+                call ESMF_LogWrite("MED - "//trim(fieldNameList(n))//" time stamp is "//trim(timeStr2), ESMF_LOGMSG_INFO)
+                call ESMF_LogWrite("MED - current time is "//trim(timeStr1), ESMF_LOGMSG_INFO)
+                ! Set flag
                 compDone(compatm) = .false.
                 exit  ! break out of the loop when first not satisfied found
              endif
