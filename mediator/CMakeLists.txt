@@ -35,5 +35,12 @@ target_include_directories (cmeps PUBLIC ${ESMF_F90COMPILEPATHS})
 target_include_directories (cmeps PUBLIC "${CMAKE_BINARY_DIR}/ufs")
 target_include_directories (cmeps PUBLIC ${PIO_Fortran_INCLUDE_DIR})
 
+# ESMX requires mod files
+foreach (SRC ${SRCFILES})
+  string(REGEX REPLACE "[.]F90$" ".mod" MOD ${SRC})
+  string(TOLOWER "${MOD}" LOWER_MOD)
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${LOWER_MOD}" DESTINATION include)
+endforeach ()
+
 install(TARGETS cmeps
         LIBRARY DESTINATION lib)
