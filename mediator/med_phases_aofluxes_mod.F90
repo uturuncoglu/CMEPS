@@ -1584,6 +1584,7 @@ end subroutine med_aofluxes_map_ogrid2xgrid_input
           ! rainc is not used without add_gusts but some compilers complain about the unallocated pointer
           ! in the subroutine interface
           allocate(aoflux_in%rainc(1))
+          aoflux_in%rainc(:) = 0.0_r8
        end if
     end if
 

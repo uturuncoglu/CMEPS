@@ -21,7 +21,7 @@ contains
     character(len=*), intent(in) :: string
     integer, intent(in) :: level
     logical, intent(in) :: maintask
-#ifdef CESMCOUPLED
+#ifdef ENABLE_GPTL
     integer :: ierr
     integer, external :: GPTLprint_memusage
     if((maintask .and. memdebug_level > level) .or. memdebug_level > level+1) then

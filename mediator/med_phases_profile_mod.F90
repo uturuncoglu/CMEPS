@@ -11,7 +11,7 @@ module med_phases_profile_mod
   use med_utils_mod         , only : chkerr    => med_utils_ChkErr
   use nuopc_shr_methods     , only : alarmInit
   use perf_mod              , only : t_startf, t_stopf
-#ifdef CESMCOUPLED
+#ifdef ENABLE_GPTL
   use shr_mem_mod           , only : shr_mem_getusage
 #endif
 
@@ -188,7 +188,7 @@ contains
 
           write(logunit,101) 'Model Date: ',trim(nexttimestr), ' wall clock = ',trim(walltimestr),' avg dt = ', &
                avgdt, ' s/day, dt = ',wallclockelapsed/ringdays,' s/day, rate = ',ypd,' ypd'
-#ifdef CESMCOUPLED
+#ifdef ENABLE_GPTL
           call shr_mem_getusage(msize,mrss,.true.)
           write(logunit,105) ' memory_write: model date = ',trim(nexttimestr), &
                ' memory = ',msize,' MB (highwater)    ',mrss,' MB (usage)'

@@ -127,7 +127,7 @@ contains
     !---------------
 
     use ESMF , only : ESMF_GridComp, ESMF_UtilStringUpperCase
-#ifdef CESMCOUPLED
+#ifndef PIO_INIT
     use shr_pio_mod , only : shr_pio_getiosys, shr_pio_getiotype, shr_pio_getioformat
 #else
     use pio  , only : pio_init, pio_setdebuglevel, pio_set_rearr_opts
@@ -144,7 +144,7 @@ contains
     type(ESMF_GridComp), intent(in)    :: gcomp
     integer            , intent(out)   :: rc
 
-#ifndef CESMCOUPLED
+#ifdef PIO_INIT
     ! local variables
     type(ESMF_VM)           :: vm
     integer                 :: ret
@@ -169,7 +169,7 @@ contains
     !-------------------------------------------------------------------------------
 #endif
 
-#ifdef CESMCOUPLED
+#ifndef PIO_INIT
     io_subsystem => shr_pio_getiosys(med_id)
     pio_iotype   =  shr_pio_getiotype(med_id)
     pio_ioformat =  shr_pio_getioformat(med_id)
