@@ -1279,6 +1279,7 @@ contains
           end if
        end if
        if (fldchk(is_local%wrap%FBexp(compatm), 'So_t', rc=rc)) then
+          call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
           call addmrg_to(compatm, 'So_t', mrg_from=compocn, mrg_fld='So_t', mrg_type='copy')
        end if
     end if
