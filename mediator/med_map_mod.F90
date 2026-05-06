@@ -1190,6 +1190,7 @@ contains
                      field_dst=packed_data(mapindex)%field_dst, &
                      routehandles=routehandles, &
                      maptype=mapindex, &
+                     zeroregiontype=zeroregion, &
                      field_normsrc=field_fracsrc, &
                      field_normdst=packed_data(mapindex)%field_fracdst, rc=rc)
                 if (chkerr(rc,__LINE__,u_FILE_u)) return
@@ -1280,14 +1281,15 @@ contains
 
   !================================================================================
   subroutine med_map_field_normalized(field_src, field_dst, routehandles, maptype, &
-       field_normsrc, field_normdst, rc)
+       field_normsrc, field_normdst, zeroregiontype, rc)
 
     ! -----------------------------------------------
     ! Map a normalized field
     ! -----------------------------------------------
 
     use ESMF        , only : ESMF_Field, ESMF_FieldGet, ESMF_RouteHandle
-    use ESMF        , only : ESMF_SUCCESS
+    use ESMF        , only : ESMF_SUCCESS, ESMF_Region_Flag
+    use ESMF        , only : ESMF_REGION_TOTAL, ESMF_REGION_SELECT
 
     ! input/output variables
     type(ESMF_Field)       , intent(in)    :: field_src
@@ -1296,7 +1298,8 @@ contains
     type(ESMF_Field)       , intent(inout) :: field_normdst
     type(ESMF_RouteHandle) , intent(inout) :: routehandles(:)
     integer                , intent(in)    :: maptype
-    integer                , intent(out)   :: rc
+    type(ESMF_Region_Flag) , optional, intent(in) :: zeroregiontype
+    integer, optional      , intent(out)   :: rc
 
     ! local variables
     integer           :: n
@@ -1311,10 +1314,14 @@ contains
     integer           :: ungriddedUBound(1)     ! currently the size must equal 1 for rank 2 fields
     integer           :: lsize_src
     integer           :: lsize_dst
+    type(ESMF_Region_Flag) :: zeroregion
     character(len=*), parameter  :: subname=' (med_map_mod:med_map_field_normalized) '
     !-----------------------------------------------------------
 
     rc = ESMF_SUCCESS
+
+    zeroregion = ESMF_REGION_TOTAL
+    if (present(zeroregiontype)) zeroregion = zeroregiontype
 
     ! get a pointer (data_fracsrc) to the normalization array
     ! get a pointer (data_src) to source field data in FBSrc
@@ -1347,7 +1354,8 @@ contains
     end if
 
     ! regrid normalized packed source field
-    call med_map_field (field_src=field_src, field_dst=field_dst, routehandles=routehandles, maptype=maptype, rc=rc)
+    call med_map_field (field_src=field_src, field_dst=field_dst, routehandles=routehandles, maptype=maptype, &
+       zeroregiontype=zeroregion, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
 
     ! restore original value to packed source field
@@ -1359,15 +1367,23 @@ contains
        deallocate(data_srctmp1d)
     end if
 
-    ! regrid normalization field from source to destination
-    call med_map_field(field_src=field_normsrc, field_dst=field_normdst, routehandles=routehandles, maptype=maptype, rc=rc)
-    if (chkerr(rc,__LINE__,u_FILE_u)) return
-
     ! get pointer to mapped fraction and normalize
     ! destination mapped values by the reciprocal of the mapped fraction
     call ESMF_FieldGet(field_normdst, farrayPtr=data_normdst, rc=rc)
     if (chkerr(rc,__LINE__,u_FILE_u)) return
     lsize_dst = size(data_normdst)
+
+    ! set initial value of field_normdst to 1.0, used for the data coming from CDEPS
+    ! this is for the regional setup that ocean model domain is smaller than atmosphere
+    ! TODO: not sure this will change answer for exiting configuration
+    if (present(zeroregiontype)) then
+       data_normdst(:) = 1.0_r8
+    end if
+
+    ! regrid normalization field from source to destination
+    call med_map_field(field_src=field_normsrc, field_dst=field_normdst, routehandles=routehandles, maptype=maptype, &
+       zeroregiontype=zeroregion, rc=rc)
+    if (chkerr(rc,__LINE__,u_FILE_u)) return
 
     if (ungriddedUbound(1) > 0) then
        call ESMF_FieldGet(field_dst, farrayPtr=data_dst2d, rc=rc)
@@ -1407,7 +1423,7 @@ contains
     use ESMF                  , only : ESMF_RouteHandle
     use ESMF                  , only : ESMF_FieldWriteVTK
     use med_internalstate_mod , only : mapnstod_consd, mapnstod_consf, mapnstod_consd, mapnstod
-    use med_internalstate_mod , only : mapconsd, mapconsf
+    use med_internalstate_mod , only : mapconsd, mapconsf, mapnames
     use med_internalstate_mod , only : mapfillv_bilnr
     use med_methods_mod       , only : Field_diagnose => med_methods_Field_diagnose
 
@@ -1478,8 +1494,12 @@ contains
        end if
     else
        call ESMF_FieldRegrid(field_src, field_dst, routehandle=RouteHandles(maptype), &
-            termorderflag=ESMF_TERMORDER_SRCSEQ, checkflag=checkflag, zeroregion=ESMF_REGION_TOTAL, rc=rc)
+            termorderflag=ESMF_TERMORDER_SRCSEQ, checkflag=checkflag, zeroregion=zeroregion, rc=rc)
        if (chkerr(rc,__LINE__,u_FILE_u)) return
+       if (dbug_flag > 1) then
+          call Field_diagnose(field_dst, lfldname, " --> after "//trim(mapnames(maptype))//": ", rc=rc)
+          if (chkerr(rc,__LINE__,u_FILE_u)) return
+       end if
     end if
 
   end subroutine med_map_field

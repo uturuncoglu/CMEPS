@@ -1280,10 +1280,9 @@ contains
        end if
        if (fldchk(is_local%wrap%FBexp(compatm), 'So_t', rc=rc)) then
           ! CESM way
-          !call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
-          ! This is without normalization since CDEPS infiling only tested without it
-          ! TODO: Activate CDEPS infiling with normalization
-          call addmap_from(compocn, 'So_t', compatm, mapfillv_bilnr, 'none', 'unset')
+          call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
+          ! case without normalization, this is not the usual way used in CESM
+          !call addmap_from(compocn, 'So_t', compatm, mapfillv_bilnr, 'none', 'unset')
           call addmrg_to(compatm, 'So_t', mrg_from=compocn, mrg_fld='So_t', mrg_type='copy')
        end if
     end if
