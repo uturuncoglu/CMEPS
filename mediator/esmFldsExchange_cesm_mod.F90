@@ -116,9 +116,9 @@ contains
     use med_internalstate_mod , only : compmed, compatm, complnd, compocn
     use med_internalstate_mod , only : compice, comprof, compwav, compglc, ncomps
     use med_internalstate_mod , only : mapbilnr, mapconsf, mapconsd, mappatch, mappatch_uv3d, mapbilnr_nstod
-    use med_internalstate_mod , only : mapfcopy, mapnstod, mapnstod_consd, mapnstod_consf
+    use med_internalstate_mod , only : mapfcopy, mapnstod, mapnstod_consd, mapnstod_consf, mapfillv_bilnr
     use med_internalstate_mod , only : map_rof2ocn_ice, map_rof2ocn_liq
-    use med_internalstate_mod, only : ocn_name, ice_name
+    use med_internalstate_mod , only : ocn_name, ice_name
     use esmFlds               , only : addfld_ocnalb => med_fldList_addfld_ocnalb
     use esmFlds               , only : addfld_aoflux => med_fldList_addfld_aoflux
     use esmFlds               , only : addmap_aoflux => med_fldList_addmap_aoflux
@@ -1279,7 +1279,11 @@ contains
           end if
        end if
        if (fldchk(is_local%wrap%FBexp(compatm), 'So_t', rc=rc)) then
-          call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
+          ! CESM way
+          !call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
+          ! This is without normalization since CDEPS infiling only tested without it
+          ! TODO: Activate CDEPS infiling with normalization
+          call addmap_from(compocn, 'So_t', compatm, mapfillv_bilnr, 'none', 'unset')
           call addmrg_to(compatm, 'So_t', mrg_from=compocn, mrg_fld='So_t', mrg_type='copy')
        end if
     end if
