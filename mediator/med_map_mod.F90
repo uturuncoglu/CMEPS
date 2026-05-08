@@ -419,7 +419,7 @@ contains
        if (n1 == compwav .and. n2 == compocn) then
          srcMaskValue = 0
          dstMaskValue = ispval_mask
-      endif
+       endif
     end if
     if (coupling_mode(1:3) == 'ufs') then
        if (n1 == compatm .and. n2 == complnd) then
@@ -1290,6 +1290,7 @@ contains
     use ESMF        , only : ESMF_Field, ESMF_FieldGet, ESMF_RouteHandle
     use ESMF        , only : ESMF_SUCCESS, ESMF_Region_Flag
     use ESMF        , only : ESMF_REGION_TOTAL, ESMF_REGION_SELECT
+    use ESMF        , only : operator(==)
 
     ! input/output variables
     type(ESMF_Field)       , intent(in)    :: field_src
@@ -1376,7 +1377,7 @@ contains
     ! set initial value of field_normdst to 1.0, used for the data coming from CDEPS
     ! this is for the regional setup that ocean model domain is smaller than atmosphere
     ! TODO: not sure this will change answer for exiting configuration
-    if (present(zeroregiontype)) then
+    if (zeroregion == ESMF_REGION_SELECT) then
        data_normdst(:) = 1.0_r8
     end if
 
