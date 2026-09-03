@@ -1266,9 +1266,34 @@ contains
                   mrg_from=compocn, mrg_fld='So_t', mrg_type='merge', mrg_fracname='ofrac')
           end if
        end if
-       if (fldchk(is_local%wrap%FBexp(compatm), 'So_t', rc=rc)) then
+       if (fldchk(is_local%wrap%FBexp(compatm), 'So_t', rc=rc) .and. &
+           fldchk(is_local%wrap%FBImp(compocn,compocn), 'So_t', rc=rc)) then
           call addmap_from(compocn, 'So_t', compatm, mapconsf, 'ofrac', ocn2atm_map)
           call addmrg_to(compatm, 'So_t', mrg_from=compocn, mrg_fld='So_t', mrg_type='copy')
+       end if
+    end if
+
+    ! ---------------------------------------------------------------------
+    ! to atm: ocean surface current components
+    ! ---------------------------------------------------------------------
+    if (phase == 'advertise') then
+       call addfld_from(compocn, 'So_u')
+       call addfld_to(compatm, 'So_u')
+    else
+       if ( fldchk(is_local%wrap%FBexp(compatm)        , 'So_u', rc=rc) .and. &
+            fldchk(is_local%wrap%FBImp(compocn,compocn), 'So_u', rc=rc)) then
+          call addmap_from(compocn, 'So_u', compatm, mapfcopy , 'unset', 'unset')
+          call addmrg_to(compatm, 'So_u', mrg_from=compocn, mrg_fld='So_u', mrg_type='copy')
+       end if
+    end if
+    if (phase == 'advertise') then
+       call addfld_from(compocn, 'So_v')
+       call addfld_to(compatm, 'So_v')
+    else
+       if ( fldchk(is_local%wrap%FBexp(compatm)        , 'So_v', rc=rc) .and. &
+            fldchk(is_local%wrap%FBImp(compocn,compocn), 'So_v', rc=rc)) then
+          call addmap_from(compocn, 'So_v', compatm, mapfcopy , 'unset', 'unset')
+          call addmrg_to(compatm, 'So_v', mrg_from=compocn, mrg_fld='So_v', mrg_type='copy')
        end if
     end if
 
