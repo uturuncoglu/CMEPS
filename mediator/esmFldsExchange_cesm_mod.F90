@@ -1282,7 +1282,7 @@ contains
     else
        if ( fldchk(is_local%wrap%FBexp(compatm)        , 'So_u', rc=rc) .and. &
             fldchk(is_local%wrap%FBImp(compocn,compocn), 'So_u', rc=rc)) then
-          call addmap_from(compocn, 'So_u', compatm, mapfcopy , 'unset', 'unset')
+          call addmap_from(compocn, 'So_u', compatm, mapbilnr_nstod, 'one', 'unset')
           call addmrg_to(compatm, 'So_u', mrg_from=compocn, mrg_fld='So_u', mrg_type='copy')
        end if
     end if
@@ -1292,7 +1292,7 @@ contains
     else
        if ( fldchk(is_local%wrap%FBexp(compatm)        , 'So_v', rc=rc) .and. &
             fldchk(is_local%wrap%FBImp(compocn,compocn), 'So_v', rc=rc)) then
-          call addmap_from(compocn, 'So_v', compatm, mapfcopy , 'unset', 'unset')
+          call addmap_from(compocn, 'So_v', compatm, mapbilnr_nstod, 'one', 'unset')
           call addmrg_to(compatm, 'So_v', mrg_from=compocn, mrg_fld='So_v', mrg_type='copy')
        end if
     end if
